@@ -1,0 +1,1 @@
+console: target/universal/stage/bin/trollabot-scala

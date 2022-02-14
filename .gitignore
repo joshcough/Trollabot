@@ -1,0 +1,14 @@
+/project/project
+/target
+/project/target
+/.idea
+/.idea_modules
+/.classpath
+/.project
+/.settings
+/.bsp
+/RUNNING_PID
+secret.conf
+*.sc
+*.log
+/chatbots
