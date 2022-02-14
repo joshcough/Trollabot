@@ -1,3 +1,10 @@
+delete from quotes;
+delete from streams;
+
+insert into streams values (0, 'daut', false);
+insert into streams values (1, 'jonslow_', false);
+insert into streams values (2, 'artofthetroll', true);
+
 COPY public.quotes (id, text, qid, user_id, channel) FROM stdin;
 618	such a loomie fucker	585	carloscnsz	0
 621	Hera: "I will study math and education." Daut: "Waaat, but you suck at both! I guess that's why you study..."	588	byelo	0
@@ -2408,3 +2415,7 @@ COPY public.quotes (id, text, qid, user_id, channel) FROM stdin;
 2683	"Hussars!? That's so last year"	2411	woootman_	0
 2684	You're fat, you're cool. you're deadly	2412	deagle2511	0
 \.
+
+SELECT pg_catalog.setval('public.quotes_id_seq', 2684, true);
+SELECT pg_catalog.setval('public.streams_id_seq', 2, false);
+
