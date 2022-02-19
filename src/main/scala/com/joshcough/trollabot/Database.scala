@@ -13,7 +13,7 @@ case class Stream(id: Option[Int], name: String, joined: Boolean)
 
 class Streams(tag: Tag) extends Table[Stream](tag, "streams") {
   def id: Rep[Int] = column[Int]("id", O.PrimaryKey, O.AutoInc)
-  def name: Rep[String] = column[String]("name")
+  def name: Rep[String] = column[String]("name", O.Unique)
   def joined: Rep[Boolean] = column[Boolean]("joined")
   def * : ProvenShape[Stream] = (id.?, name, joined) <> (Stream.tupled, Stream.unapply)
 }
