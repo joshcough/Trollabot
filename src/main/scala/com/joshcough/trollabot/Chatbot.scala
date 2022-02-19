@@ -53,12 +53,8 @@ case class Chatbot(db: Database) {
   def createChatMessage(badges: String, username: String, channel: String, message: String): ChatMessage = {
     val badgeMap: Map[String, String] = parseBadges(badges)
     val chatUserName = ChatUserName(username)
-    val chatUser = ChatUser(
-      chatUserName,
-      badgeMap.get("mod").contains("1"),
-      badgeMap.get("subscriber").contains("1"),
-      badgeMap
-    )
+    def is(fld:String): Boolean = badgeMap.get(fld).contains("1")
+    val chatUser = ChatUser(chatUserName, is("mod"), is("subscriber"), badgeMap)
     ChatMessage(chatUser, ChannelName(channel), message)
   }
 
@@ -90,7 +86,7 @@ case class Chatbot(db: Database) {
     privMsg(s.name, s"Hello!")
   }
 
-  def processMessages(): Unit = {
+  def processMessages(): Unit =
     try {
       Iterator
         .iterate(reader.readLine())(_ => reader.readLine())
@@ -101,7 +97,6 @@ case class Chatbot(db: Database) {
     } catch {
       case e: SocketException => println("Socket exception: " + e.getMessage)
     }
-  }
 
   def run(): Unit = {
     login()
