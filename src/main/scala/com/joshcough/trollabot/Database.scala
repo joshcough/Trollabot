@@ -86,7 +86,7 @@ case class TrollabotDb(db: Database) {
   def createSchemaIO(): Unit = runDb(DBIO.seq(schema.dropIfExists, schema.createIfNotExists))
   def getTablesIO(): Seq[MTable] = runDb(MTable.getTables)
   def closeDbIO() = db.close()
-  def runDb[R](act: DBIOAction[R, NoStream, Nothing]): R = Await.result(db.run(act), 1.second)
+  def runDb[R](act: DBIOAction[R, NoStream, Nothing]): R = Await.result(db.run(act), 5.second)
 
   // streams
   def insertStreamIO(t: Stream): Int = runDb(insertStream(t))
