@@ -1,9 +1,68 @@
-delete from quotes;
-delete from streams;
+drop table quotes;
+drop table streams;
+drop sequence quotes_id_seq;
+drop sequence streams_id_seq;
 
-insert into streams values (0, 'daut', false);
-insert into streams values (1, 'jonslow_', false);
-insert into streams values (2, 'artofthetroll', true);
+CREATE TABLE public.quotes (
+    id integer NOT NULL,
+    qid integer NOT NULL,
+    text character varying NOT NULL,
+    user_id character varying NOT NULL,
+    channel integer NOT NULL
+);
+
+CREATE SEQUENCE public.quotes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.quotes_id_seq OWNED BY public.quotes.id;
+
+CREATE TABLE public.streams (
+    id integer NOT NULL,
+    name character varying NOT NULL,
+    joined boolean NOT NULL
+);
+
+ALTER TABLE public.streams OWNER TO slick;
+
+CREATE SEQUENCE public.streams_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER TABLE public.streams_id_seq OWNER TO slick;
+
+ALTER SEQUENCE public.streams_id_seq OWNED BY public.streams.id;
+
+ALTER TABLE ONLY public.quotes ALTER COLUMN id SET DEFAULT nextval('public.quotes_id_seq'::regclass);
+
+ALTER TABLE ONLY public.streams ALTER COLUMN id SET DEFAULT nextval('public.streams_id_seq'::regclass);
+
+COPY public.streams (id, name, joined) FROM stdin;
+1	daut	f
+2	jonslow_	f
+3	artofthetroll	t
+\.
+
+SELECT pg_catalog.setval('public.quotes_id_seq', 8, true);
+
+SELECT pg_catalog.setval('public.streams_id_seq', 3, true);
+
+ALTER TABLE ONLY public.quotes
+    ADD CONSTRAINT quotes_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.streams
+    ADD CONSTRAINT streams_name_key UNIQUE (name);
+
+ALTER TABLE ONLY public.streams
+    ADD CONSTRAINT streams_pkey PRIMARY KEY (id);
 
 COPY public.quotes (id, text, qid, user_id, channel) FROM stdin;
 618	such a loomie fucker	585	carloscnsz	0
