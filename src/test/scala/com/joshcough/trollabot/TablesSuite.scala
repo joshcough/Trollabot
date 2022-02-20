@@ -14,7 +14,7 @@ class TablesSuite extends funsuite.AnyFunSuite with BeforeAndAfter with ScalaFut
   val streams: Seq[Stream] = List(daut, jonslow, artoftroll)
 
   before {
-    db = TrollabotDb(Database.forConfig("db"))
+    db = TrollabotDb(Database.forConfig("test_db"))
     db.createSchemaIO()
     streams.foreach(db.insertStreamIO)
   }
