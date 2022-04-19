@@ -12,13 +12,12 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-create_tables.sql:ro
 
   chatbot:
     container_name: trollabot-chatbot
     build:
       context: ./
-    image: joshcough:trollabot
     depends_on:
       - db
     environment:
@@ -31,7 +30,3 @@ services:
       - db
     volumes:
       - './:/src'
-
-volumes:
-  db:
-    driver: local

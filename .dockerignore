@@ -1,0 +1,5 @@
+.*
+db/
+target/
+Dockerfile
+docker-compose.yml
