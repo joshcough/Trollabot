@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   db:
     image: postgres:12-alpine
@@ -11,7 +12,8 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
+
   chatbot:
     container_name: trollabot-chatbot
     build:
@@ -29,6 +31,7 @@ services:
       - db
     volumes:
       - './:/src'
+
 volumes:
   db:
     driver: local
