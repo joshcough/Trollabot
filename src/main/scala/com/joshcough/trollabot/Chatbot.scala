@@ -83,7 +83,7 @@ case class Chatbot(db: Database) {
 
   def join(s:Stream): Unit = {
     join(s.name)
-    privMsg(s.name, s"Hello!")
+    privMsg(s.name, s"Hola estupidos!")
   }
 
   def processMessages(): Unit =
@@ -100,7 +100,9 @@ case class Chatbot(db: Database) {
 
   def run(): Unit = {
     login()
-    trollabotDb.getJoinedStreamsIO().foreach(join)
+    val streams = trollabotDb.getJoinedStreamsIO()
+    println("Joining these streams: " + streams)
+    streams.foreach(join)
     processMessages()
     println("Done processing messages, shutting down.")
   }
