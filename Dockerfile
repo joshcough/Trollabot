@@ -26,8 +26,8 @@ FROM openjdk:8-jre
 
 WORKDIR /app
 
-ARG TROLLABOT_TOKEN "oauth:tg0jy8cmw01h5v5r1tmac5yd9hjdk1"
-ENV TROLLABOT_TOKEN="${TROLLABOT_TOKEN}"
+ARG TROLLABOT_TOKEN="oauth:tg0jy8cmw01h5v5r1tmac5yd9hjdk1"
+ENV TROLLABOT_TOKEN=${TROLLABOT_TOKEN}
 
 COPY --from=builder /src/target/scala-2.13/trollabot-scala-assembly-0.1.0.jar /app/trollabot-scala-assembly-0.1.0.jar
 
