@@ -1,0 +1,7 @@
+.*
+db/
+target/
+run.sh
+Dockerfile
+docker-compose.yml
+!target/scala-2.13/trollabot-scala-assembly-0.1.0.jar
