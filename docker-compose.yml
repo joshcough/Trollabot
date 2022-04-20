@@ -15,7 +15,6 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-create_tables.sql:ro
 
   chatbot:
-    container_name: trollabot-chatbot
     build:
       context: ./
     depends_on:
