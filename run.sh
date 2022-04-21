@@ -1,3 +1,3 @@
-sbt assembly
-docker-compose build
+sbt assembly &&
+docker-compose build &&
 docker-compose up

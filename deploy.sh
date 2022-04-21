@@ -1,0 +1,1 @@
+aws ecs update-service --cluster Trollabot-cluster --service trollabot-service --force-new-deployment

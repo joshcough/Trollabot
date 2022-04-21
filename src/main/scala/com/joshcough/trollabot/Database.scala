@@ -76,6 +76,9 @@ case class TrollabotDb(db: Database) {
   def getStreamId(streamName: String): Query[Rep[Int], Int, Seq] =
     streams.filter(_.name === streamName).map(_.id)
 
+  def doesStreamExist(streamName: String): Rep[Boolean] =
+    streams.filter(_.name === streamName).exists
+
   def getAllQuotes(streamName: String): Query[Quotes, Quote, Seq] =
     (streams join quotes on ((s,q) => s.id === q.channel))
       .filter{ case (s, _) => s.name === streamName }
@@ -92,10 +95,13 @@ case class TrollabotDb(db: Database) {
   def runDb[R](act: DBIOAction[R, NoStream, Nothing]): R = Await.result(db.run(act), 5.second)
 
   // streams
-  def insertStreamIO(t: Stream): Int = runDb(insertStream(t))
-  def partStreamIO(stream: String): Unit = runDb(partStream(stream))
+  def insertStreamIO(streamName: String): Int =
+    runDb(insertStream(Stream(None, streamName, joined = true)))
+  def partStreamIO(streamName: String): Unit = runDb(partStream(streamName))
   def getAllStreamsIO() : Seq[Stream] = runDb(streams.result)
   def getJoinedStreamsIO(): Seq[Stream] = runDb(getJoinedStreams.result)
+  def joinStreamIO(streamName: String): Int = runDb(joinStream(streamName))
+  def doesStreamExistIO(streamName: String) : Boolean = runDb(doesStreamExist(streamName).result)
 
   // quotes
   def getQuoteByQidIO(stream: String, qid: Int): Option[Quote] =
