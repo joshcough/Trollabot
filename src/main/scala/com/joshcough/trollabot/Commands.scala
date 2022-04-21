@@ -3,12 +3,14 @@ package com.joshcough.trollabot
 import ParserCombinators._
 
 trait Permission
+  case object God extends Permission
   case object Owner extends Permission
   case object ModOnly extends Permission
   case object Anyone extends Permission
 
 trait Response
   case class RespondWith(s: String) extends Response
+  case class Join(newChannel: String) extends Response
   case object Part extends Response
 
 case class ChatUserName(name: String)
@@ -44,6 +46,12 @@ case class ChatMessage(user: ChatUser, channel: ChannelName, body: String)
 
 case class Commands(trollabotDb: TrollabotDb) {
 
+  val printStreamsCommand: BotCommand =
+    BotCommand("!printStreams", God, empty, (_, _, _: Unit) => {
+      val streams = trollabotDb.getAllStreamsIO()
+      List(RespondWith(streams.map(_.toString).mkString(", ")))
+    })
+
   val getQuoteCommand: BotCommand = {
     def f(msg: String, mq: Option[Quote]) = List(RespondWith(mq.map(_.display).getOrElse(msg)))
     BotCommand("!quote", Anyone, int.?, (channelName, _, mn: Option[Int]) => {
@@ -77,11 +85,22 @@ case class Commands(trollabotDb: TrollabotDb) {
       List(RespondWith("Goodbye cruel world!"), Part)
     })
 
+  val joinCommand: BotCommand =
+    BotCommand("!join", Owner, anyString, (_, _, newChannelName: String) => {
+      if (! trollabotDb.doesStreamExistIO(newChannelName))
+        trollabotDb.insertStreamIO(newChannelName)
+      else
+        trollabotDb.joinStreamIO(newChannelName)
+      List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
+    })
+
   val commands: Map[String, BotCommand] = List(
+    joinCommand,
     partCommand,
     getQuoteCommand,
     addQuoteCommand,
     delQuoteCommand,
+    printStreamsCommand,
   ).map(c => (c.name, c)).toMap
 
   def findAndRun(msg: ChatMessage): List[Response] = {
@@ -103,6 +122,7 @@ case class Commands(trollabotDb: TrollabotDb) {
     }
 
     cmd.permission match {
+      case God if isGod(msg.user) => go
       case Owner if isStreamerOrGod(msg.user, msg) => go
       case ModOnly if msg.user.isMod || isStreamerOrGod(msg.user, msg) => go
       case Anyone => go
@@ -111,6 +131,7 @@ case class Commands(trollabotDb: TrollabotDb) {
   }
 
   def isStreamerOrGod(chatUser: ChatUser, chatMessage: ChatMessage): Boolean =
-    chatUser.username.name.toLowerCase == chatMessage.channel.name.toLowerCase ||
-    chatUser.username.name.toLowerCase == "artofthetroll"
+    chatUser.username.name.toLowerCase == chatMessage.channel.name.toLowerCase || isGod(chatUser)
+
+  def isGod(chatUser: ChatUser): Boolean = chatUser.username.name.toLowerCase == "artofthetroll"
 }
