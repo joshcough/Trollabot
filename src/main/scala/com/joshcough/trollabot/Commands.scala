@@ -85,6 +85,7 @@ case class Commands(trollabotDb: TrollabotDb) {
     })
 
   val commands: Map[String, BotCommand] = List(
+    joinCommand,
     partCommand,
     getQuoteCommand,
     addQuoteCommand,
