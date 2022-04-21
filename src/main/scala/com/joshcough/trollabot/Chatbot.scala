@@ -83,7 +83,7 @@ case class Chatbot(db: Database) {
 
   def join(s:Stream): Unit = {
     join(s.name)
-    privMsg(s.name, s"Hola mi hombres!")
+    privMsg(s.name, s"Hola mi hombres muy estupido!")
   }
 
   def processMessages(): Unit =
