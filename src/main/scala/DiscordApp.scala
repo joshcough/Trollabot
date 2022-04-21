@@ -1,27 +1,20 @@
-import ackcord._
-import ackcord.data._
+import ackcord.{APIMessage, _}
+import akka.NotUsed
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 object DiscordApp extends App {
-
-  val token = "TRoflymJ544dkEfSejsq7bGQNFjJbRFL" //Your Discord token. Be very careful to never give this to anyone else
-
+  val token = "OTY1NzkyNDIxMzk5MTM0MzE4.Yl4WSA.092YfO6iCqA5gFE8D0VTAnaZJGI"
   val clientSettings = ClientSettings(token)
-  //The client settings contains an excecution context that you can use before you have access to the client
-  import clientSettings.executionContext
-
-  //In real code, please dont block on the client construction
   val client = Await.result(clientSettings.createClient(), Duration.Inf)
-
-  //The client also contains an execution context
-  import client.executionContext
-
-  client.onEventSideEffectsIgnore {
-    case APIMessage.Ready(_) => println("Now ready")
-    case x@_ => print(s"x?: $x")
-  }
-
+  val myListeners = new MyListeners(client.requests)
+  client.registerListener(myListeners.onLogin)
   client.login()
-  println("Logged in?")
+}
+
+class MyListeners(requests: Requests) extends EventsController(requests) {
+  val onLogin: EventListener[APIMessage.Ready, NotUsed] =
+    TextChannelEvent.on[APIMessage.Ready].withSideEffects { _ =>
+      println("Logged in.")
+    }
 }

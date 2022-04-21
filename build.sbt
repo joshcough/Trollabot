@@ -3,7 +3,8 @@ lazy val root = (project in file("."))
     name := "trollabot-scala",
     version := "0.1.0",
     scalaVersion := "2.13.8",
-    assembly / mainClass := Some("App")
+    Compile / run / mainClass := Some("DiscordApp"),
+    assembly / mainClass := Some("DiscordApp"),
   )
 
 resolvers += Resolver.JCenterRepository
