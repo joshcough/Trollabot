@@ -14,7 +14,5 @@ object DiscordApp extends App {
 
 class MyListeners(requests: Requests) extends EventsController(requests) {
   val onLogin: EventListener[APIMessage.Ready, NotUsed] =
-    TextChannelEvent.on[APIMessage.Ready].withSideEffects { _ =>
-      println("Logged in.")
-    }
+    Event.on[APIMessage.Ready].withSideEffects { _ => println("Logged in.") }
 }
