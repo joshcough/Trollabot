@@ -59,6 +59,9 @@ case class TrollabotDb(db: Database) {
   def partStream(streamName: String): FixedSqlAction[Int, NoStream, Effect.Write] =
     streams.filter(_.name === streamName).map(_.joined).update(false)
 
+  def joinStream(streamName: String): FixedSqlAction[Int, NoStream, Effect.Write] =
+    streams.filter(_.name === streamName).map(_.joined).update(true)
+
   // select ..., max(quotes.qid)
   // from quotes join streams
   // on streams.id = quotes.channel

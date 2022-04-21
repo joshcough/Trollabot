@@ -67,6 +67,7 @@ case class Chatbot(db: Database) {
         val responses = commands.findAndRun(createChatMessage(badges, username, channel, message))
         responses.foreach {
           case RespondWith(s) => privMsg(channel, s)
+          case Join => join(channel)
           case Part => part(channel)
         }
       case _ =>

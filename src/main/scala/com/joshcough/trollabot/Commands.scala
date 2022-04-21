@@ -9,6 +9,7 @@ trait Permission
 
 trait Response
   case class RespondWith(s: String) extends Response
+  case object Join extends Response
   case object Part extends Response
 
 case class ChatUserName(name: String)
@@ -75,6 +76,12 @@ case class Commands(trollabotDb: TrollabotDb) {
     BotCommand("!part", Owner, empty, (channelName, _, _: Unit) => {
       trollabotDb.partStream(channelName.name)
       List(RespondWith("Goodbye cruel world!"), Part)
+    })
+
+  val joinCommand: BotCommand =
+    BotCommand("!join", Owner, empty, (channelName, _, _: Unit) => {
+      trollabotDb.joinStream(channelName.name)
+      List(RespondWith(s"Joining ${channelName.name}!"), Join)
     })
 
   val commands: Map[String, BotCommand] = List(
