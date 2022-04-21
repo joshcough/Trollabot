@@ -20,6 +20,5 @@ services:
     depends_on:
       - db
     environment:
-      DB_PASSWORD: "${POSTGRES_PASSWORD}"
       DATABASE_URL: "${DATABASE_URL}"
       TROLLABOT_TOKEN: "${TROLLABOT_TOKEN}"
