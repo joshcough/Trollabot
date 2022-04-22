@@ -85,14 +85,15 @@ case class Commands(trollabotDb: TrollabotDb) {
       List(RespondWith("Goodbye cruel world!"), Part)
     })
 
-  val joinCommand: BotCommand =
-    BotCommand("!join", Owner, anyString, (_, _, newChannelName: String) => {
+  val joinCommand: BotCommand = {
+    BotCommand("!join", God, anyString, (_, _, newChannelName: String) => {
       if (! trollabotDb.doesStreamExistIO(newChannelName))
         trollabotDb.insertStreamIO(newChannelName)
       else
         trollabotDb.joinStreamIO(newChannelName)
       List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
     })
+  }
 
   val commands: Map[String, BotCommand] = List(
     joinCommand,
