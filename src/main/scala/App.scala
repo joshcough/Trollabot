@@ -1,9 +1,10 @@
+import cats.effect.IO
 import com.joshcough.trollabot.{Chatbot, Configuration}
-import slick.jdbc.PostgresProfile.api.Database
+import doobie.Transactor
 
 object App {
   def main(args: Array[String]): Unit = {
-    val chatbot = Chatbot(Database.forURL(Configuration.dbUrl, driver = "org.postgresql.Driver"))
+    val chatbot = Chatbot(Transactor.fromDriverManager[IO]("org.postgresql.Driver", Configuration.dbUrl))
     Runtime.getRuntime.addShutdownHook(new Thread { override def run(): Unit = chatbot.close() })
     chatbot.run()
   }

@@ -1,10 +1,11 @@
 package com.joshcough.trollabot
 
-import slick.jdbc.PostgresProfile.api._
+import cats.effect.IO
+import doobie.Transactor
 
-case class Chatbot(db: Database) {
+case class Chatbot(xa: Transactor[IO]) {
 
-  val trollabotDb: TrollabotDb = TrollabotDb(db)
+  val trollabotDb: TrollabotDb = TrollabotDb(xa)
   val commands: Commands = Commands(trollabotDb)
 
   val irc: Irc = Irc(chatMessage => {
@@ -23,7 +24,7 @@ case class Chatbot(db: Database) {
 
   def run(): Unit = {
     irc.login()
-    val streams = trollabotDb.getJoinedStreamsIO()
+    val streams = trollabotDb.getJoinedStreamsIO
     println("Joining these streams: " + streams)
     streams.foreach(s => join(s.name))
     irc.processMessages()

@@ -48,7 +48,7 @@ case class Commands(trollabotDb: TrollabotDb) {
 
   val printStreamsCommand: BotCommand =
     BotCommand("!printStreams", God, empty, (_, _, _: Unit) => {
-      val streams = trollabotDb.getAllStreamsIO()
+      val streams = trollabotDb.getAllStreamsIO
       List(RespondWith(streams.map(_.toString).mkString(", ")))
     })
 
@@ -74,14 +74,14 @@ case class Commands(trollabotDb: TrollabotDb) {
   val delQuoteCommand: BotCommand =
     BotCommand("!delQuote", ModOnly, int, (channelName, _, n: Int) => {
       trollabotDb.deleteQuoteIO(channelName.name, n) match {
-        case Some(_) => List(RespondWith("Ok I deleted it."))
-        case None => List(RespondWith(s"Something went wrong! I couldn't add stream ${channelName.name}. Somebody tell @artofthetroll"))
+        case 1 => List(RespondWith("Ok I deleted it."))
+        case _ => List(RespondWith(s"Something went wrong! I couldn't delete quote $n for channel ${channelName.name}. Somebody tell @artofthetroll"))
       }
     })
 
   val partCommand: BotCommand =
     BotCommand("!part", Owner, empty, (channelName, _, _: Unit) => {
-      trollabotDb.partStream(channelName.name)
+      trollabotDb.partStreamIO(channelName.name)
       List(RespondWith("Goodbye cruel world!"), Part)
     })
 

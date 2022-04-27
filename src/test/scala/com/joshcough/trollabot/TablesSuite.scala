@@ -1,8 +1,9 @@
 package com.joshcough.trollabot
 
+import cats.effect.IO
+import doobie.Transactor
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import slick.jdbc.PostgresProfile.api._
 
 class TablesSuite extends funsuite.AnyFunSuite with BeforeAndAfter with ScalaFutures {
 
@@ -14,19 +15,16 @@ class TablesSuite extends funsuite.AnyFunSuite with BeforeAndAfter with ScalaFut
   val streams: Seq[Stream] = List(daut, jonslow, artoftroll)
 
   before {
-    db = TrollabotDb(Database.forConfig("test_db"))
+    val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
+      "org.postgresql.Driver", "jdbc:postgresql://localhost:5432/slick?user=slick&password=testes"
+    )
+    db = TrollabotDb(xa)
     db.createSchemaIO()
-    streams.foreach(db.insertStreamIO)
-  }
-
-  test("tables") {
-    val tables = db.getTablesIO()
-    assert(tables.size >= 2)
-    List("streams", "quotes").foreach(t => assert(tables.count(_.name.name.equalsIgnoreCase(t)) == 1))
+    streams.foreach(s => db.insertStreamIO(s.name))
   }
 
   test("Streams") {
-    val streams = db.getAllStreamsIO()
+    val streams = db.getAllStreamsIO
     assert(streams.size === 3)
   }
 
@@ -45,20 +43,72 @@ class TablesSuite extends funsuite.AnyFunSuite with BeforeAndAfter with ScalaFut
     insertAndGetQuote("You are proper Jordan Tati", "jc",daut)
     insertAndGetQuote("close us man!", "jc",daut)
 
-    assert(db.getAllQuotesIO(daut.name).size === 5)
+    assert(db.getAllQuotesForStreamIO(daut.name).size === 5)
 
     val Some(rando) = db.getRandomQuoteIO(daut.name)
     db.deleteQuoteIO(daut.name, rando.qid)
 
-    assert(db.getAllQuotesIO(daut.name).size === 4)
+    assert(db.getAllQuotesForStreamIO(daut.name).size === 4)
 
     insertAndGetQuote("This place sucks!", "jc", daut)
+
     insertAndGetQuote("idiota", "jc", jonslow)
     insertAndGetQuote("retardo", "jc",artoftroll)
 
-    assert(db.getAllQuotesIO("jonslow_").size === 1)
-    assert(db.getAllQuotesIO("artofthetroll").size === 1)
+    assert(db.getAllQuotesForStreamIO("jonslow_").size === 1)
+    assert(db.getAllQuotesForStreamIO("artofthetroll").size === 1)
   }
 
-  after { db.closeDbIO() }
+//  after { db.closeDbIO() }
 }
+
+/*
+object doobsMain {
+
+  val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
+    "org.postgresql.Driver", "jdbc:postgresql://localhost:5432/slick?user=slick&password=testes"
+  )
+
+  def go(streamName:String): Unit = {
+    (dropQuotesTable.run, dropStreamsTable.run).mapN(_ + _).transact(xa).unsafeRunSync()
+    (createStreamsTable.run, createQuotesTable.run).mapN(_ + _).transact(xa).unsafeRunSync()
+
+    println("inserting stream")
+    insertStream(Stream(None, streamName, joined = false)).run.transact(xa).unsafeRunSync()
+
+    println("inserting some quotes")
+    insertQuote("hello", "troll", streamName).compile.toList.transact(xa).unsafeRunSync()
+    insertQuote("goodbye", "zeke", streamName).compile.toList.transact(xa).unsafeRunSync()
+    insertQuote("11", "viper", streamName).compile.toList.transact(xa).unsafeRunSync()
+
+    println("random quote:")
+    getRandomQuoteForStream(streamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+    println("all quotes:")
+    getAllQuotesForStream(streamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+    println("all streams:")
+    getAllStreams.compile.toList.transact(xa).unsafeRunSync().foreach(println)
+    println("joined streams:")
+    getJoinedStreams.compile.toList.transact(xa).unsafeRunSync().foreach(println)
+    println("stream id:")
+    getStreamId(streamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+
+    println("next qid:")
+    nextQidForChannel(streamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+
+    println("inserting stream")
+    val newStreamName = "test-delete-me"
+    val x = insertStream(Stream(None, newStreamName, joined = false)).run.transact(xa).unsafeRunSync()
+    println(s"x: $x")
+
+    println("stream id of inserted stream:")
+    getStreamId(newStreamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+
+    println("deleting that stream")
+    val y = deleteStream(newStreamName).run.transact(xa).unsafeRunSync()
+    println(s"x: $y")
+
+    println("stream id of inserted stream:")
+    getStreamId(newStreamName).compile.toList.transact(xa).unsafeRunSync().foreach(println)
+  }
+}
+ */
