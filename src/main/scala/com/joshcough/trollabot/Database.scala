@@ -40,29 +40,22 @@ object queries {
       )""".update
 
   def getRandomQuoteForStream(streamName: String): Query0[Quote] =
-    sql"""select q.*
-          from quotes q
-          join streams s on s.id = q.channel
-          where s.name = $streamName
-          order by random()
-          limit 1
-       """.query[Quote]
+    (fr"select q.*" ++ quotesJoinStreams(streamName) ++ fr"order by random() limit 1").query[Quote]
+
+  def quotesJoinStreams(streamName: String): Fragment =
+    fr"""
+      from quotes q
+      join streams s on s.id = q.channel
+      where s.name = $streamName
+      """
 
   def getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
 
   def getAllQuotesForStream(streamName: String): Query0[Quote] =
-    sql"""select q.*
-          from quotes q
-          join streams s on s.id = q.channel
-          where s.name = $streamName
-       """.query[Quote]
+    (fr"select q.*" ++ quotesJoinStreams(streamName)).query[Quote]
 
   def getQuoteByQid(streamName: String, qid: Int): Query0[Quote] =
-    sql"""select q.*
-          from quotes q
-          join streams s on s.id = q.channel
-          where s.name = $streamName and q.qid = $qid
-       """.query[Quote]
+    (fr"select q.*" ++ quotesJoinStreams(streamName) ++ fr"and q.qid = $qid").query[Quote]
 
   def getJoinedStreams: Query0[Stream] =
     sql"select * from streams where joined = true".query[Stream]
@@ -82,15 +75,15 @@ object queries {
 
   // TODO: what if quote already has an ID? thats bad right we need to catch that, because it shouldn't.
   def insertQuote(text: String, username: String, streamName: String): Query0[Quote] =
-    sql"""insert into quotes (qid, text, user_id, channel)
-          select
-           (select coalesce(max(q.qid) + 1, 0) from quotes q join streams s on s.id = q.channel where s.name = $streamName),
-           $text,
-           $username,
-           s.id
-          from streams s where s.name = $streamName
-          returning *
-       """.query[Quote]
+    (fr"insert into quotes (qid, text, user_id, channel)" ++
+      fr"select" ++
+             fr"(" ++ nextQidForChannel_(streamName) ++ fr")," ++
+        fr"""$text,
+             $username,
+             s.id
+             from streams s where s.name = $streamName
+             returning *"""
+      ).query[Quote]
 
   def deleteQuote(streamName: String, qid: Int): Update0 =
     sql"""delete from quotes q
@@ -107,16 +100,11 @@ object queries {
   def joinStream(streamName: String): Update0 =
     sql"update streams set joined=true where name=$streamName".update
 
-  def nextQidForChannel_(streamName: String): Query0[Int] =
-    sql"""
-        select coalesce(max(q.qid) + 1, 0)
-        from quotes q
-        join streams s on s.id = q.channel
-        where s.name = $streamName
-       """.query[Int]
+  def nextQidForChannel_(streamName: String): Fragment =
+    fr"select coalesce(max(q.qid) + 1, 0)" ++ quotesJoinStreams(streamName)
 
   def nextQidForChannel(streamName: String): Query0[Int] =
-    nextQidForChannel_(streamName)
+    nextQidForChannel_(streamName).query[Int]
 }
 
 case class TrollabotDb(xa: Transactor[IO]) {
