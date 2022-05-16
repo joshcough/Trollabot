@@ -8,7 +8,8 @@ import scala.util.matching.Regex
 case class Irc(processChatMessage: ChatMessage => Unit) {
 
   val socket: SSLSocket =
-    SSLSocketFactory.getDefault.asInstanceOf[SSLSocketFactory]
+    SSLSocketFactory.getDefault
+      .asInstanceOf[SSLSocketFactory]
       .createSocket(Configuration.ircServer, Configuration.ircPort)
       .asInstanceOf[SSLSocket]
   socket.startHandshake()
@@ -38,7 +39,7 @@ case class Irc(processChatMessage: ChatMessage => Unit) {
   def createChatMessage(badges: String, username: String, channel: String, message: String): ChatMessage = {
     val badgeMap: Map[String, String] = parseBadges(badges)
     val chatUserName = ChatUserName(username)
-    def is(fld:String): Boolean = badgeMap.get(fld).contains("1")
+    def is(fld: String): Boolean = badgeMap.get(fld).contains("1")
     val chatUser = ChatUser(chatUserName, is("mod"), is("subscriber"), badgeMap)
     ChatMessage(chatUser, ChannelName(channel), message)
   }
@@ -55,9 +56,9 @@ case class Irc(processChatMessage: ChatMessage => Unit) {
   def login(): Unit = {
     pass(Configuration.ircToken)
     nick(Configuration.ircUsername)
-    capReq ("twitch.tv/membership")
-    capReq ("twitch.tv/commands")
-    capReq ("twitch.tv/tags")
+    capReq("twitch.tv/membership")
+    capReq("twitch.tv/commands")
+    capReq("twitch.tv/tags")
   }
 
   def send(s: String): Unit = {

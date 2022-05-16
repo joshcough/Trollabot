@@ -3,15 +3,15 @@ package com.joshcough.trollabot
 import ParserCombinators._
 
 trait Permission
-  case object God extends Permission
-  case object Owner extends Permission
-  case object ModOnly extends Permission
-  case object Anyone extends Permission
+case object God extends Permission
+case object Owner extends Permission
+case object ModOnly extends Permission
+case object Anyone extends Permission
 
 trait Response
-  case class RespondWith(s: String) extends Response
-  case class Join(newChannel: String) extends Response
-  case object Part extends Response
+case class RespondWith(s: String) extends Response
+case class Join(newChannel: String) extends Response
+case object Part extends Response
 
 case class ChatUserName(name: String)
 case class ChatUser(username: ChatUserName, isMod: Boolean, subscriber: Boolean, badges: Map[String, String])
@@ -27,10 +27,12 @@ trait BotCommand {
 }
 
 object BotCommand {
-  def apply[R](commandName: String,
-               perm: Permission,
-               commandParser: Parser[R],
-               f: (ChannelName, ChatUser, R) => List[Response]): BotCommand = {
+  def apply[R](
+      commandName: String,
+      perm: Permission,
+      commandParser: Parser[R],
+      f: (ChannelName, ChatUser, R) => List[Response]
+  ): BotCommand = {
     new BotCommand {
       override type A = R
       val name: String = commandName
@@ -46,53 +48,97 @@ case class ChatMessage(user: ChatUser, channel: ChannelName, body: String)
 
 case class Commands(trollabotDb: TrollabotDb) {
 
+  val db: TrollabotDbIO = TrollabotDbIO(trollabotDb)
+
   val printStreamsCommand: BotCommand =
-    BotCommand("!printStreams", God, empty, (_, _, _: Unit) => {
-      val streams = trollabotDb.getAllStreamsIO
-      List(RespondWith(streams.map(_.toString).mkString(", ")))
-    })
+    BotCommand(
+      "!printStreams",
+      God,
+      empty,
+      (_, _, _: Unit) => {
+        val streams = db.getAllStreams
+        List(RespondWith(streams.map(_.toString).mkString(", ")))
+      }
+    )
 
   val getQuoteCommand: BotCommand = {
     def f(msg: String, mq: Option[Quote]) = List(RespondWith(mq.map(_.display).getOrElse(msg)))
-    BotCommand("!quote", Anyone, int.?, (channelName, _, mn: Option[Int]) => {
-      mn match {
-        case None => f("I couldn't find any quotes, man.", trollabotDb.getRandomQuoteIO(channelName.name))
-        case Some(n) => f(s"I couldn't find quote #$n, man.", trollabotDb.getQuoteByQidIO(channelName.name, n))
+    BotCommand(
+      "!quote",
+      Anyone,
+      int.?,
+      (channelName, _, mn: Option[Int]) => {
+        mn match {
+          case None    => f("I couldn't find any quotes, man.", db.getRandomQuoteForStream(channelName.name))
+          case Some(n) => f(s"I couldn't find quote #$n, man.", db.getQuoteByQid(channelName.name, n))
+        }
       }
-    })
+    )
   }
 
   val addQuoteCommand: BotCommand =
-    BotCommand("!addQuote", ModOnly, slurp, (channelName, chatUser, text: String) => {
-      println(s"in addQuoteCommand, $channelName $chatUser $text")
-      trollabotDb.insertQuoteIO(text, chatUser.username.name, channelName.name) match {
-        case Some(q) => List(RespondWith(s"Added ${q.display}"))
-        case None => List(RespondWith(s"Something went wrong! I couldn't add stream ${channelName.name}. Somebody tell @artofthetroll"))
+    BotCommand(
+      "!addQuote",
+      ModOnly,
+      slurp,
+      (channelName, chatUser, text: String) => {
+        println(s"in addQuoteCommand, $channelName $chatUser $text")
+        db.insertQuote(text, chatUser.username.name, channelName.name) match {
+          case Some(q) => List(RespondWith(s"Added ${q.display}"))
+          case None =>
+            List(
+              RespondWith(
+                s"Something went wrong! I couldn't add stream ${channelName.name}. Somebody tell @artofthetroll"
+              )
+            )
+        }
       }
-    })
+    )
 
   val delQuoteCommand: BotCommand =
-    BotCommand("!delQuote", ModOnly, int, (channelName, _, n: Int) => {
-      trollabotDb.deleteQuoteIO(channelName.name, n) match {
-        case 1 => List(RespondWith("Ok I deleted it."))
-        case _ => List(RespondWith(s"Something went wrong! I couldn't delete quote $n for channel ${channelName.name}. Somebody tell @artofthetroll"))
+    BotCommand(
+      "!delQuote",
+      ModOnly,
+      int,
+      (channelName, _, n: Int) => {
+        db.deleteQuote(channelName.name, n) match {
+          case 1 => List(RespondWith("Ok I deleted it."))
+          case _ =>
+            List(
+              RespondWith(
+                s"Something went wrong! I couldn't delete quote $n for channel ${channelName.name}. Somebody tell @artofthetroll"
+              )
+            )
+        }
       }
-    })
+    )
 
   val partCommand: BotCommand =
-    BotCommand("!part", Owner, empty, (channelName, _, _: Unit) => {
-      trollabotDb.partStreamIO(channelName.name)
-      List(RespondWith("Goodbye cruel world!"), Part)
-    })
+    BotCommand(
+      "!part",
+      Owner,
+      empty,
+      (channelName, _, _: Unit) => {
+        db.partStream(channelName.name)
+        List(RespondWith("Goodbye cruel world!"), Part)
+      }
+    )
 
   val joinCommand: BotCommand = {
-    BotCommand("!join", God, anyString, (_, _, newChannelName: String) => {
-      if (! trollabotDb.doesStreamExistIO(newChannelName))
-        trollabotDb.insertStreamIO(newChannelName)
-      else
-        trollabotDb.joinStreamIO(newChannelName)
-      List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
-    })
+    BotCommand(
+      "!join",
+      God,
+      anyString,
+      (_, _, newChannelName: String) => {
+
+        if (!db.doesStreamExist(newChannelName))
+          db.insertStream(newChannelName)
+        else
+          db.joinStream(newChannelName)
+
+        List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
+      }
+    )
   }
 
   val commands: Map[String, BotCommand] = List(
@@ -101,7 +147,7 @@ case class Commands(trollabotDb: TrollabotDb) {
     getQuoteCommand,
     addQuoteCommand,
     delQuoteCommand,
-    printStreamsCommand,
+    printStreamsCommand
   ).map(c => (c.name, c)).toMap
 
   def findAndRun(msg: ChatMessage): List[Response] = {
@@ -118,16 +164,16 @@ case class Commands(trollabotDb: TrollabotDb) {
     def go: List[Response] = {
       cmd.parser.apply(args.trim) match {
         case Success(r, _) => cmd.execute(msg.channel, msg.user, r)
-        case Failure(_) => List(RespondWith("Sorry, I don't understand that."))
+        case Failure(_)    => List(RespondWith("Sorry, I don't understand that."))
       }
     }
 
     cmd.permission match {
-      case God if isGod(msg.user) => go
-      case Owner if isStreamerOrGod(msg.user, msg) => go
+      case God if isGod(msg.user)                                      => go
+      case Owner if isStreamerOrGod(msg.user, msg)                     => go
       case ModOnly if msg.user.isMod || isStreamerOrGod(msg.user, msg) => go
-      case Anyone => go
-      case _ => Nil
+      case Anyone                                                      => go
+      case _                                                           => Nil
     }
   }
 

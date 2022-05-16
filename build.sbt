@@ -1,3 +1,5 @@
+import Commands._
+
 lazy val doobieVersion = "1.0.0-RC1"
 
 lazy val tcsVersion = "0.39.12"
@@ -16,20 +18,20 @@ lazy val root = (project in file("."))
     scalacOptions += "-deprecation",
     run / fork := true,
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest"       % "3.2.6" % Test,
-      "com.typesafe"  %  "config"          % "1.4.2",
-      "org.tpolecat"  %% "doobie-core"     % doobieVersion,
-      "org.tpolecat"  %% "doobie-postgres" % doobieVersion,
-      "org.tpolecat"  %% "doobie-specs2"   % doobieVersion,
+      "org.scalatest" %% "scalatest" % "3.2.6" % Test,
+      "com.typesafe" % "config" % "1.4.2",
+      "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.tpolecat" %% "doobie-postgres" % doobieVersion,
+      "org.tpolecat" %% "doobie-munit" % doobieVersion,
       // test related, probably...
-      "org.typelevel"             %% "kittens"                         % "2.3.2",
-      "org.scalameta"             %% "svm-subs"                        % "20.2.0",
-      "org.typelevel"             %% "scalacheck-effect-munit"         % "1.0.3"        % "test,it",
-      "org.typelevel"             %% "munit-cats-effect-3"             % "1.0.0"        % "test,it",
-      "com.dimafeng"              %% "testcontainers-scala-munit"      % tcsVersion     % "it",
-      "com.dimafeng"              %% "testcontainers-scala-kafka"      % tcsVersion     % "it",
-      "com.dimafeng"              %% "testcontainers-scala-postgresql" % tcsVersion     % "it",
+      "org.typelevel" %% "kittens" % "2.3.2",
+      "org.scalameta" %% "svm-subs" % "20.2.0",
+      "org.typelevel" %% "scalacheck-effect-munit" % "1.0.3" % "test,it",
+      "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % "test,it",
+      "com.dimafeng" %% "testcontainers-scala-munit" % tcsVersion % "it",
+      "com.dimafeng" %% "testcontainers-scala-kafka" % tcsVersion % "it",
+      "com.dimafeng" %% "testcontainers-scala-postgresql" % tcsVersion % "it"
     )
   )
 
-
+commands ++= Seq(format, formatCheck)

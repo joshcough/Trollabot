@@ -3,10 +3,9 @@ import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
 import com.joshcough.trollabot.TrollabotDb
 import com.joshcough.trollabot.Stream
+import java.sql.DriverManager
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.testcontainers.utility.DockerImageName
-
-import java.sql.DriverManager
 
 class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with TestContainersForAll {
 
@@ -24,28 +23,31 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     p
   }
 
-  def makeDb(postgres: PostgreSQLContainer): TrollabotDb = {
-    TrollabotDb(Transactor.fromConnection(
-      DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)
-    ))
-  }
-
-  def withDb[A](f: TrollabotDb => A): A = withContainers { postgres => f(makeDb(postgres)) }
   def dbTest[A](name: String)(f: TrollabotDb => A): Unit = test(name){
-    withContainers { postgres => f(makeDb(postgres)) }
+    withContainers { postgres =>
+      f(TrollabotDb(Transactor.fromConnection(
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)
+      )))
+    }
   }
 
   def insertAndGetQuote(db: TrollabotDb, text: String, user: String, stream: Stream): Unit = {
-    val Some(newQ) = db.insertQuoteIO(text, user, stream.name)
+    val dbAction = for {
+      newQ <- db.insertQuote(text, user, stream.name).stream
+      newQ_ <- db.getQuoteByQid(stream.name, newQ.qid).stream
+    } yield (newQ, newQ_)
+
+    val Some((newQ, newQ_)) = db.runStream(dbAction).headOption
+
     assert(newQ.text == text)
-    val Some(newQ_) = db.getQuoteByQidIO(stream.name, newQ.qid)
     assert(newQ_.text == text)
     assert(newQ == newQ_)
   }
 
+
   dbTest("Startup") { db =>
-    db.createSchemaIO()
-    streams.foreach(s => db.insertStreamIO(s.name))
+    db.transact(db.recreateSchema)
+    streams.foreach(s => db.runUpdate(db.insertStream(Stream(None, s.name, joined = false))))
   }
 
   dbTest("Main") { db =>
@@ -55,20 +57,19 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     insertAndGetQuote(db, "You are proper Jordan Tati", "jc", daut)
     insertAndGetQuote(db, "close us man!", "jc", daut)
 
-    assert(db.getAllQuotesForStreamIO(daut.name).size == 5)
+    val dautStreams = db.runQuery(db.getAllQuotesForStream(daut.name))
+    assert(dautStreams.size == 5)
 
-    val Some(rando) = db.getRandomQuoteIO(daut.name)
-    db.deleteQuoteIO(daut.name, rando.qid)
+    val Some(rando) = db.runQuery(db.getRandomQuoteForStream(daut.name)).headOption
+    db.runUpdate(db.deleteQuote(daut.name, rando.qid))
 
-    assert(db.getAllQuotesForStreamIO(daut.name).size == 4)
+    assert(db.runQuery(db.getAllQuotesForStream(daut.name)).size == 4)
 
     insertAndGetQuote(db, "This place sucks!", "jc", daut)
-
     insertAndGetQuote(db, "idiota", "jc", jonslow)
-    insertAndGetQuote(db, "retardo", "jc",artoftroll)
+    insertAndGetQuote(db, "retardo", "jc", artoftroll)
 
-    assert(db.getAllQuotesForStreamIO("jonslow_").size == 1)
-    assert(db.getAllQuotesForStreamIO("artofthetroll").size == 1)
+    assert(db.runQuery(db.getAllQuotesForStream("jonslow_")).size == 1)
+    assert(db.runQuery(db.getAllQuotesForStream("artofthetroll")).size == 1)
   }
 }
-

@@ -1,6 +1,5 @@
 package com.joshcough.trollabot
 
-import queries._
 import doobie._
 import doobie.implicits._
 import cats.effect.IO
@@ -9,19 +8,17 @@ import cats.implicits._
 
 case class Stream(id: Option[Int], name: String, joined: Boolean)
 
-case class Quote(id: Option[Int], qid: Int, text : String, userId: String, channel: Int){
+case class Quote(id: Option[Int], qid: Int, text: String, userId: String, channel: Int) {
   def display: String = s"Quote #$qid: $text"
 }
 
-object queries {
+trait TrollabotQueries {
 
-  def dropStreamsTable: Update0 =
-    sql"drop table if exists streams".update
+  val dropStreamsTable: Update0 = sql"drop table if exists streams".update
 
-  def dropQuotesTable: Update0 =
-    sql"drop table if exists quotes".update
+  val dropQuotesTable: Update0 = sql"drop table if exists quotes".update
 
-  def createStreamsTable: Update0 =
+  val createStreamsTable: Update0 =
     sql"""
       CREATE TABLE streams (
         id SERIAL PRIMARY KEY,
@@ -29,7 +26,7 @@ object queries {
         joined boolean NOT NULL
       )""".update
 
-  def createQuotesTable: Update0 =
+  val createQuotesTable: Update0 =
     sql"""
       CREATE TABLE quotes (
         id SERIAL PRIMARY KEY,
@@ -49,7 +46,7 @@ object queries {
       where s.name = $streamName
       """
 
-  def getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
+  val getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
 
   def getAllQuotesForStream(streamName: String): Query0[Quote] =
     (fr"select q.*" ++ quotesJoinStreams(streamName)).query[Quote]
@@ -57,10 +54,10 @@ object queries {
   def getQuoteByQid(streamName: String, qid: Int): Query0[Quote] =
     (fr"select q.*" ++ quotesJoinStreams(streamName) ++ fr"and q.qid = $qid").query[Quote]
 
-  def getJoinedStreams: Query0[Stream] =
+  val getJoinedStreams: Query0[Stream] =
     sql"select * from streams where joined = true".query[Stream]
 
-  def getAllStreams: Query0[Stream] =
+  val getAllStreams: Query0[Stream] =
     sql"select * from streams".query[Stream]
 
   def getStreamId(streamName: String): Query0[Int] =
@@ -77,13 +74,12 @@ object queries {
   def insertQuote(text: String, username: String, streamName: String): Query0[Quote] =
     (fr"insert into quotes (qid, text, user_id, channel)" ++
       fr"select" ++
-             fr"(" ++ nextQidForChannel_(streamName) ++ fr")," ++
-        fr"""$text,
+      fr"(" ++ nextQidForChannel_(streamName) ++ fr")," ++
+      fr"""$text,
              $username,
              s.id
              from streams s where s.name = $streamName
-             returning *"""
-      ).query[Quote]
+             returning *""").query[Quote]
 
   def deleteQuote(streamName: String, qid: Int): Update0 =
     sql"""delete from quotes q
@@ -105,51 +101,55 @@ object queries {
 
   def nextQidForChannel(streamName: String): Query0[Int] =
     nextQidForChannel_(streamName).query[Int]
+
+  val recreateSchema: ConnectionIO[Int] =
+    (dropQuotesTable, dropStreamsTable, createStreamsTable, createQuotesTable) match {
+      case (a, b, c, d) => (a.run, b.run, c.run, d.run).mapN(_ + _ + _ + _)
+    }
 }
 
-case class TrollabotDb(xa: Transactor[IO]) {
+// I feel like there is probably a better way on all this stuff
+case class TrollabotDb(xa: Transactor[IO]) extends TrollabotQueries {
+  def runStream[A](s: fs2.Stream[ConnectionIO, A]): Seq[A] = transact(s.compile.toList)
+  def runQuery[A](q: Query0[A]): Seq[A] = runStream(q.stream)
+  def runUpdate[A](u: Update0): Int = transact(u.run)
+  def transact[A](x: ConnectionIO[A]): A = x.transact(xa).unsafeRunSync()
+}
 
-  // misc
-  def createSchemaIO(): Unit = {
-    (dropQuotesTable.run, dropStreamsTable.run).mapN(_ + _).transact(xa).unsafeRunSync()
-    (createStreamsTable.run, createQuotesTable.run).mapN(_ + _).transact(xa).unsafeRunSync()
-  }
+// This sorta represents stuff that I would still like to kill, if possible.
+case class TrollabotDbIO(db: TrollabotDb) {
+  // schema
+  def createSchema(): Unit = db.transact(db.recreateSchema)
 
   // streams
-  def insertStreamIO(streamName: String): Int =
-    queries.insertStream(Stream(None, streamName, joined = false)).run.transact(xa).unsafeRunSync()
+  def insertStream(streamName: String): Int =
+    db.runUpdate(db.insertStream(Stream(None, streamName, joined = false)))
 
-  def partStreamIO(streamName: String): Unit =
-    queries.partStream(streamName).run.transact(xa).unsafeRunSync()
+  def partStream(streamName: String): Unit = db.runUpdate(db.partStream(streamName))
 
-  def getAllStreamsIO : Seq[Stream] =
-    queries.getAllStreams.stream.compile.toList.transact(xa).unsafeRunSync()
+  def getAllStreams: Seq[Stream] = db.runQuery(db.getAllStreams)
 
-  def getJoinedStreamsIO: Seq[Stream] =
-    queries.getJoinedStreams.stream.compile.toList.transact(xa).unsafeRunSync()
+  def getJoinedStreams: Seq[Stream] = db.runQuery(db.getJoinedStreams)
 
-  def joinStreamIO(streamName: String): Int =
-    queries.joinStream(streamName).run.transact(xa).unsafeRunSync()
+  def joinStream(streamName: String): Int = db.runUpdate(db.joinStream(streamName))
 
-  def doesStreamExistIO(streamName: String) : Boolean =
-    queries.doesStreamExist(streamName).stream.compile.toList.transact(xa).unsafeRunSync().headOption.getOrElse(false)
+  def doesStreamExist(streamName: String): Boolean =
+    db.runQuery(db.doesStreamExist(streamName)).headOption.getOrElse(false)
 
   // quotes
-  def getQuoteByQidIO(stream: String, qid: Int): Option[Quote] =
-    queries.getQuoteByQid(stream, qid).stream.compile.toList.transact(xa).unsafeRunSync().headOption
+  def getQuoteByQid(stream: String, qid: Int): Option[Quote] =
+    db.runQuery(db.getQuoteByQid(stream, qid)).headOption
 
-  def getRandomQuoteIO(stream: String): Option[Quote] =
-    queries.getRandomQuoteForStream(stream).stream.compile.toList.transact(xa).unsafeRunSync().headOption
+  def getRandomQuoteForStream(stream: String): Option[Quote] =
+    db.runQuery(db.getRandomQuoteForStream(stream)).headOption
 
-  def getAllQuotesIO: Seq[Quote] =
-    queries.getAllQuotes.stream.compile.toList.transact(xa).unsafeRunSync()
+  def getAllQuotes: Seq[Quote] = db.runQuery(db.getAllQuotes)
 
-  def getAllQuotesForStreamIO(stream: String): Seq[Quote] =
-    queries.getAllQuotesForStream(stream).stream.compile.toList.transact(xa).unsafeRunSync()
+  def getAllQuotesForStream(stream: String): Seq[Quote] = db.runQuery(db.getAllQuotesForStream(stream))
 
-  def insertQuoteIO(text: String, username: String, streamName: String): Option[Quote] =
-    queries.insertQuote(text, username, streamName).stream.compile.toList.transact(xa).unsafeRunSync().headOption
+  def insertQuote(text: String, username: String, streamName: String): Option[Quote] =
+    db.runQuery(db.insertQuote(text, username, streamName)).headOption
 
-  def deleteQuoteIO(streamName: String, qid: Int): Int =
-    queries.deleteQuote(streamName: String, qid: Int).run.transact(xa).unsafeRunSync()
+  def deleteQuote(streamName: String, qid: Int): Int =
+    db.runUpdate(db.deleteQuote(streamName: String, qid: Int))
 }
