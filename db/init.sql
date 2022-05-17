@@ -38,9 +38,10 @@ CREATE SEQUENCE public.quotes_id_seq
 ALTER SEQUENCE public.quotes_id_seq OWNED BY public.quotes.id;
 
 CREATE TABLE public.streams (
-    id integer NOT NULL,
+    id SERIAL PRIMARY KEY,
     name character varying NOT NULL,
-    joined boolean NOT NULL
+    joined boolean NOT NULL,
+    primary key id
 );
 
 ALTER TABLE public.streams OWNER TO postgres;

@@ -1,20 +1,37 @@
+import Commands._
+
+lazy val doobieVersion = "1.0.0-RC1"
+
+lazy val tcsVersion = "0.39.12"
+
 lazy val root = (project in file("."))
+  .configs(IntegrationTest)
   .settings(
     name := "trollabot-scala",
     version := "0.1.0",
     scalaVersion := "2.13.8",
-    assembly / mainClass := Some("App")
+    assembly / mainClass := Some("App"),
+    Defaults.itSettings,
+//    addCompilerPlugin("io.tryp" % "splain" % "0.5.8" cross CrossVersion.patch),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
+    IntegrationTest / fork := true,
+    scalacOptions += "-deprecation",
+    run / fork := true,
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.2.6" % Test,
+      "com.typesafe" % "config" % "1.4.2",
+      "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.tpolecat" %% "doobie-postgres" % doobieVersion,
+      "org.tpolecat" %% "doobie-munit" % doobieVersion,
+      // test related, probably...
+      "org.typelevel" %% "kittens" % "2.3.2",
+      "org.scalameta" %% "svm-subs" % "20.2.0",
+      "org.typelevel" %% "scalacheck-effect-munit" % "1.0.3" % "test,it",
+      "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % "test,it",
+      "com.dimafeng" %% "testcontainers-scala-munit" % tcsVersion % "it",
+      "com.dimafeng" %% "testcontainers-scala-kafka" % tcsVersion % "it",
+      "com.dimafeng" %% "testcontainers-scala-postgresql" % tcsVersion % "it"
+    )
   )
 
-libraryDependencies ++= Seq(
-  "com.typesafe.slick" %% "slick" % "3.3.3",
-  "org.slf4j" % "slf4j-nop" % "1.7.26",
-  "com.typesafe.slick" %% "slick-hikaricp" % "3.3.3",
-  "org.postgresql" % "postgresql" % "42.3.4", //org.postgresql.ds.PGSimpleDataSource dependency
-  "org.scalatest" %% "scalatest" % "3.2.6" % Test,
-  "com.typesafe" % "config" % "1.4.2"
-)
-
-scalacOptions += "-deprecation"
-
-run / fork := true
+commands ++= Seq(format, formatCheck)
