@@ -1,6 +1,8 @@
 package com.joshcough.trollabot
 
 import ParserCombinators._
+import cats.effect.IO
+import cats.implicits._
 
 trait Permission
 case object God extends Permission
@@ -22,7 +24,7 @@ trait BotCommand {
   val name: String
   val permission: Permission
   val parser: Parser[A]
-  def execute(channelName: ChannelName, chatUser: ChatUser, a: A): List[Response]
+  def execute(channelName: ChannelName, chatUser: ChatUser, a: A): IO[List[Response]]
   override def toString: String = s"Command(name: $name, perm: $permission)"
 }
 
@@ -31,14 +33,14 @@ object BotCommand {
       commandName: String,
       perm: Permission,
       commandParser: Parser[R],
-      f: (ChannelName, ChatUser, R) => List[Response]
+      f: (ChannelName, ChatUser, R) => IO[List[Response]]
   ): BotCommand = {
     new BotCommand {
       override type A = R
       val name: String = commandName
       val permission: Permission = perm
       val parser: Parser[A] = commandParser
-      def execute(channelName: ChannelName, chatUser: ChatUser, r: A): List[Response] =
+      def execute(channelName: ChannelName, chatUser: ChatUser, r: A): IO[List[Response]] =
         f(channelName, chatUser, r)
     }
   }
@@ -55,10 +57,10 @@ case class Commands(trollabotDb: TrollabotDb) {
       "!printStreams",
       God,
       empty,
-      (_, _, _: Unit) => {
-        val streams = db.getAllStreams
-        List(RespondWith(streams.map(_.toString).mkString(", ")))
-      }
+      (_, _, _: Unit) =>
+        for {
+          streams <- db.getAllStreams
+        } yield List(RespondWith(streams.map(_.toString).mkString(", ")))
     )
 
   val getQuoteCommand: BotCommand = {
@@ -69,8 +71,8 @@ case class Commands(trollabotDb: TrollabotDb) {
       int.?,
       (channelName, _, mn: Option[Int]) => {
         mn match {
-          case None    => f("I couldn't find any quotes, man.", db.getRandomQuoteForStream(channelName.name))
-          case Some(n) => f(s"I couldn't find quote #$n, man.", db.getQuoteByQid(channelName.name, n))
+          case None    => db.getRandomQuoteForStream(channelName.name).map(q => f("I couldn't find any quotes, man.", q))
+          case Some(n) => db.getQuoteByQid(channelName.name, n).map(q => f(s"I couldn't find quote #$n, man.", q))
         }
       }
     )
@@ -83,7 +85,9 @@ case class Commands(trollabotDb: TrollabotDb) {
       slurp,
       (channelName, chatUser, text: String) => {
         println(s"in addQuoteCommand, $channelName $chatUser $text")
-        db.insertQuote(text, chatUser.username.name, channelName.name) match {
+        for {
+          oq <- db.insertQuote(text, chatUser.username.name, channelName.name)
+        } yield oq match {
           case Some(q) => List(RespondWith(s"Added ${q.display}"))
           case None =>
             List(
@@ -100,8 +104,10 @@ case class Commands(trollabotDb: TrollabotDb) {
       "!delQuote",
       ModOnly,
       int,
-      (channelName, _, n: Int) => {
-        db.deleteQuote(channelName.name, n) match {
+      (channelName, _, n: Int) =>
+        for {
+          i <- db.deleteQuote(channelName.name, n)
+        } yield i match {
           case 1 => List(RespondWith("Ok I deleted it."))
           case _ =>
             List(
@@ -110,7 +116,6 @@ case class Commands(trollabotDb: TrollabotDb) {
               )
             )
         }
-      }
     )
 
   val partCommand: BotCommand =
@@ -118,10 +123,10 @@ case class Commands(trollabotDb: TrollabotDb) {
       "!part",
       Owner,
       empty,
-      (channelName, _, _: Unit) => {
-        db.partStream(channelName.name)
-        List(RespondWith("Goodbye cruel world!"), Part)
-      }
+      (channelName, _, _: Unit) =>
+        for {
+          _ <- db.partStream(channelName.name)
+        } yield List(RespondWith("Goodbye cruel world!"), Part)
     )
 
   val joinCommand: BotCommand = {
@@ -129,15 +134,11 @@ case class Commands(trollabotDb: TrollabotDb) {
       "!join",
       God,
       anyString,
-      (_, _, newChannelName: String) => {
-
-        if (!db.doesStreamExist(newChannelName))
-          db.insertStream(newChannelName)
-        else
-          db.joinStream(newChannelName)
-
-        List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
-      }
+      (_, _, newChannelName: String) =>
+        for {
+          b <- db.doesStreamExist(newChannelName)
+          _ <- if (b) db.insertStream(newChannelName) else db.joinStream(newChannelName)
+        } yield List(Join(newChannelName), RespondWith(s"Joining $newChannelName!"))
     )
   }
 
@@ -150,21 +151,21 @@ case class Commands(trollabotDb: TrollabotDb) {
     printStreamsCommand
   ).map(c => (c.name, c)).toMap
 
-  def findAndRun(msg: ChatMessage): List[Response] = {
+  def findAndRun(msg: ChatMessage): IO[List[Response]] = {
     val (name, rest) = msg.body.trim.span(_ != ' ')
     commands.get(name) match {
       case Some(command) =>
         println(s"command: $command")
         runBotCommand(command, msg, rest)
-      case None => Nil
+      case None => Nil.pure[IO]
     }
   }
 
-  def runBotCommand(cmd: BotCommand, msg: ChatMessage, args: String): List[Response] = {
-    def go: List[Response] = {
+  def runBotCommand(cmd: BotCommand, msg: ChatMessage, args: String): IO[List[Response]] = {
+    def go: IO[List[Response]] = {
       cmd.parser.apply(args.trim) match {
         case Success(r, _) => cmd.execute(msg.channel, msg.user, r)
-        case Failure(_)    => List(RespondWith("Sorry, I don't understand that."))
+        case Failure(_)    => List(RespondWith("Sorry, I don't understand that.")).pure[IO]
       }
     }
 
@@ -173,7 +174,7 @@ case class Commands(trollabotDb: TrollabotDb) {
       case Owner if isStreamerOrGod(msg.user, msg)                     => go
       case ModOnly if msg.user.isMod || isStreamerOrGod(msg.user, msg) => go
       case Anyone                                                      => go
-      case _                                                           => Nil
+      case _                                                           => Nil.pure[IO]
     }
   }
 

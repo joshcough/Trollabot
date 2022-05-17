@@ -102,54 +102,63 @@ trait TrollabotQueries {
   def nextQidForChannel(streamName: String): Query0[Int] =
     nextQidForChannel_(streamName).query[Int]
 
+  // these three are pretty much just for testing i think.
+
   val recreateSchema: ConnectionIO[Int] =
     (dropQuotesTable, dropStreamsTable, createStreamsTable, createQuotesTable) match {
       case (a, b, c, d) => (a.run, b.run, c.run, d.run).mapN(_ + _ + _ + _)
     }
+
+  val deleteAllQuotes: Update0 = sql"delete from quotes".update
+
+  val deleteAllStreams: Update0 = sql"delete from streams".update
 }
 
 // I feel like there is probably a better way on all this stuff
 case class TrollabotDb(xa: Transactor[IO]) extends TrollabotQueries {
-  def runStream[A](s: fs2.Stream[ConnectionIO, A]): Seq[A] = transact(s.compile.toList)
-  def runQuery[A](q: Query0[A]): Seq[A] = runStream(q.stream)
-  def runUpdate[A](u: Update0): Int = transact(u.run)
-  def transact[A](x: ConnectionIO[A]): A = x.transact(xa).unsafeRunSync()
+  def runStream[A](s: fs2.Stream[ConnectionIO, A]): IO[Seq[A]] = transact(s.compile.toList)
+  def runQuery[A](q: Query0[A]): IO[Seq[A]] = runStream(q.stream)
+  def runUpdate[A](u: Update0): IO[Int] = transact(u.run)
+  def transact[A](x: ConnectionIO[A]): IO[A] = x.transact(xa)
 }
 
 // This sorta represents stuff that I would still like to kill, if possible.
 case class TrollabotDbIO(db: TrollabotDb) {
-  // schema
-  def createSchema(): Unit = db.transact(db.recreateSchema)
 
   // streams
-  def insertStream(streamName: String): Int =
+  def insertStream(streamName: String): IO[Int] =
     db.runUpdate(db.insertStream(Stream(None, streamName, joined = false)))
 
-  def partStream(streamName: String): Unit = db.runUpdate(db.partStream(streamName))
+  def partStream(streamName: String): IO[Int] = db.runUpdate(db.partStream(streamName))
 
-  def getAllStreams: Seq[Stream] = db.runQuery(db.getAllStreams)
+  val getAllStreams: IO[Seq[Stream]] = db.runQuery(db.getAllStreams)
 
-  def getJoinedStreams: Seq[Stream] = db.runQuery(db.getJoinedStreams)
+  val getJoinedStreams: IO[Seq[Stream]] = db.runQuery(db.getJoinedStreams)
 
-  def joinStream(streamName: String): Int = db.runUpdate(db.joinStream(streamName))
+  def joinStream(streamName: String): IO[Int] = db.runUpdate(db.joinStream(streamName))
 
-  def doesStreamExist(streamName: String): Boolean =
-    db.runQuery(db.doesStreamExist(streamName)).headOption.getOrElse(false)
+  def doesStreamExist(streamName: String): IO[Boolean] =
+    db.runQuery(db.doesStreamExist(streamName)).map(_.headOption.getOrElse(false))
 
   // quotes
-  def getQuoteByQid(stream: String, qid: Int): Option[Quote] =
-    db.runQuery(db.getQuoteByQid(stream, qid)).headOption
+  def getQuoteByQid(stream: String, qid: Int): IO[Option[Quote]] =
+    db.runQuery(db.getQuoteByQid(stream, qid)).map(_.headOption)
 
-  def getRandomQuoteForStream(stream: String): Option[Quote] =
-    db.runQuery(db.getRandomQuoteForStream(stream)).headOption
+  def getRandomQuoteForStream(stream: String): IO[Option[Quote]] =
+    db.runQuery(db.getRandomQuoteForStream(stream)).map(_.headOption)
 
-  def getAllQuotes: Seq[Quote] = db.runQuery(db.getAllQuotes)
+  val getAllQuotes: IO[Seq[Quote]] = db.runQuery(db.getAllQuotes)
 
-  def getAllQuotesForStream(stream: String): Seq[Quote] = db.runQuery(db.getAllQuotesForStream(stream))
+  def getAllQuotesForStream(stream: String): IO[Seq[Quote]] = db.runQuery(db.getAllQuotesForStream(stream))
 
-  def insertQuote(text: String, username: String, streamName: String): Option[Quote] =
-    db.runQuery(db.insertQuote(text, username, streamName)).headOption
+  def insertQuote(text: String, username: String, streamName: String): IO[Option[Quote]] =
+    db.runQuery(db.insertQuote(text, username, streamName)).map(_.headOption)
 
-  def deleteQuote(streamName: String, qid: Int): Int =
+  def deleteQuote(streamName: String, qid: Int): IO[Int] =
     db.runUpdate(db.deleteQuote(streamName: String, qid: Int))
+
+  // testing
+  val createSchema: IO[Int] = db.transact(db.recreateSchema)
+  val deleteAllQuotes: IO[Int] = db.runUpdate(db.deleteAllQuotes)
+  val deleteAllStreams: IO[Int] = db.runUpdate(db.deleteAllStreams)
 }
