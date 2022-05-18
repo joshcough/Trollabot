@@ -11,13 +11,14 @@ object Chatbot {
       _ <- base.privMsg(streamName, s"Hola mi hombres muy estupido!")
     } yield ()
 
-  def apply(xa: Transactor[IO]): IO[Chatbot] = {
+  def apply(config: Configuration): IO[Chatbot] = {
+    val xa: Transactor[IO] = Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl)
     val trollabotDb: TrollabotDb = TrollabotDb(xa)
     val db: TrollabotDbIO = TrollabotDbIO(trollabotDb)
     val commands: Commands = Commands(trollabotDb)
 
     for {
-      irc <- Irc.connectFromConfig((base, chatMessage) => {
+      irc <- Irc.connectFromConfig(config)((base, chatMessage) => {
         def handleResponse(chatMessage: ChatMessage, r: Response): IO[Unit] =
           r match {
             case RespondWith(s)   => base.privMsg(chatMessage.channel.name, s)
