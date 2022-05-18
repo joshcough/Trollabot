@@ -10,14 +10,15 @@ import scala.util.matching.Regex
 
 object Irc {
 
-  def connectFromConfig(processChatMessage: (IrcBase, ChatMessage) => IO[Unit]): IO[Irc] =
+  def connectFromConfig(config: Configuration)(processChatMessage: (IrcBase, ChatMessage) => IO[Unit]): IO[Irc] =
     for {
-      server <- IO(Configuration.ircServer)
-      port <- IO(Configuration.ircPort)
-      res <- connect(server, port)(processChatMessage)
+      server <- IO(config.irc.server)
+      port <- IO(config.irc.port)
+      res <- connect(config, server, port)(processChatMessage)
     } yield res
 
-  def connect(server: String, port: Int)(processChatMessage: (IrcBase, ChatMessage) => IO[Unit]): IO[Irc] =
+  def connect(config: Configuration, server: String, port: Int)
+             (processChatMessage: (IrcBase, ChatMessage) => IO[Unit]): IO[Irc] =
     IO {
       val socket: SSLSocket =
         SSLSocketFactory.getDefault
@@ -28,13 +29,13 @@ object Irc {
 
       val reader: BufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream))
       val writer: PrintWriter = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream)))
-      val base: IrcBase = IrcBase(socket, reader, writer)
+      val base: IrcBase = IrcBase(config, socket, reader, writer)
 
       new Irc(base, processChatMessage)
     }
 }
 
-case class IrcBase(socket: SSLSocket, reader: BufferedReader, writer: PrintWriter) {
+case class IrcBase(config: Configuration, socket: SSLSocket, reader: BufferedReader, writer: PrintWriter) {
 
   val PRIVMSGRegex: Regex =
     """^(@\S+ )?:(\S+)!(\S+)? PRIVMSG #(\S+) :(.+)$""".r // badges, username, _, channel, message
@@ -49,8 +50,8 @@ case class IrcBase(socket: SSLSocket, reader: BufferedReader, writer: PrintWrite
 
   def login(): IO[Unit] =
     for {
-      _ <- pass(Configuration.ircToken)
-      _ <- nick(Configuration.ircUsername)
+      _ <- pass(config.irc.token)
+      _ <- nick(config.irc.username)
       _ <- capReq("twitch.tv/membership")
       _ <- capReq("twitch.tv/commands")
       _ <- capReq("twitch.tv/tags")
@@ -60,7 +61,7 @@ case class IrcBase(socket: SSLSocket, reader: BufferedReader, writer: PrintWrite
     IO {
       writer.println(s)
       writer.flush()
-      if (Configuration.debug) println(s"< $s")
+      if (config.debug) println(s"< $s")
     }
 
   def close(): IO[Unit] =

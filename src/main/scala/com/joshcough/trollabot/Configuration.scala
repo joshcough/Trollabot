@@ -1,16 +1,20 @@
 package com.joshcough.trollabot
 
+import cats.effect.IO
 import com.typesafe.config.{Config, ConfigFactory}
 
-import scala.util.Try
+case class IrcConfig(token: String, username: String, server: String, port: Int)
+case class Configuration(irc: IrcConfig, dbUrl: String, debug: Boolean)
 
 object Configuration {
-  val conf: Config = ConfigFactory.load
-  val debug: Boolean = conf.getBoolean("debug")
-  val ircToken: String = conf.getString("twitch.irc.token")
-  val ircUsername: String = conf.getString("twitch.irc.username")
-  val ircServer: String = conf.getString("twitch.irc.server")
-  val ircPort: Int = conf.getInt("twitch.irc.port")
-  val ircCapabilities: Option[String] = Try(conf.getString("twitch.irc.capabilities")).toOption
-  val dbUrl: String = conf.getString("db_url")
+  def read(): IO[Configuration] = IO {
+    val conf: Config = ConfigFactory.load
+    val ircToken: String = conf.getString("irc.token")
+    val ircUsername: String = conf.getString("irc.username")
+    val ircServer: String = conf.getString("irc.server")
+    val ircPort: Int = conf.getInt("irc.port")
+    val dbUrl: String = conf.getString("db_url")
+    val debug: Boolean = conf.getBoolean("debug")
+    new Configuration(IrcConfig(ircToken, ircUsername, ircServer, ircPort), dbUrl, debug)
+  }
 }
