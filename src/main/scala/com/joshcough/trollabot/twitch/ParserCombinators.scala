@@ -1,4 +1,4 @@
-package com.joshcough.trollabot
+package com.joshcough.trollabot.twitch
 
 object ParserCombinators extends ParserCombinators
 

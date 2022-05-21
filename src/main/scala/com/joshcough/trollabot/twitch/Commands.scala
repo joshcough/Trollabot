@@ -1,8 +1,9 @@
-package com.joshcough.trollabot
+package com.joshcough.trollabot.twitch
 
-import ParserCombinators._
 import cats.effect.IO
 import cats.implicits._
+import com.joshcough.trollabot.{Quote, TrollabotDb}
+import ParserCombinators._
 
 trait Permission
 case object God extends Permission
@@ -48,9 +49,7 @@ object BotCommand {
 
 case class ChatMessage(user: ChatUser, channel: ChannelName, body: String)
 
-case class Commands(trollabotDb: TrollabotDb) {
-
-  val db: TrollabotDbIO = TrollabotDbIO(trollabotDb)
+case class Commands(db: TrollabotDb[IO]) {
 
   val printStreamsCommand: BotCommand =
     BotCommand(

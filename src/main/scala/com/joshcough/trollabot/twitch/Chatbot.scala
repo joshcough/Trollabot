@@ -1,8 +1,8 @@
-package com.joshcough.trollabot
+package com.joshcough.trollabot.twitch
 
 import cats.effect.IO
 import cats.implicits._
-import doobie.Transactor
+import com.joshcough.trollabot.{Configuration, TrollabotDb}
 
 object Chatbot {
   def join(base: IrcBase, streamName: String): IO[Unit] =
@@ -11,11 +11,8 @@ object Chatbot {
       _ <- base.privMsg(streamName, s"Hola mi hombres muy estupido!")
     } yield ()
 
-  def apply(config: Configuration): IO[Chatbot] = {
-    val xa: Transactor[IO] = Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl)
-    val trollabotDb: TrollabotDb = TrollabotDb(xa)
-    val db: TrollabotDbIO = TrollabotDbIO(trollabotDb)
-    val commands: Commands = Commands(trollabotDb)
+  def apply(config: Configuration, db: TrollabotDb[IO]): IO[Chatbot] = {
+    val commands: Commands = Commands(db)
 
     for {
       irc <- Irc.connectFromConfig(config)((base, chatMessage) => {
@@ -34,7 +31,7 @@ object Chatbot {
   }
 }
 
-case class Chatbot(db: TrollabotDbIO, irc: Irc) {
+case class Chatbot(db: TrollabotDb[IO], irc: Irc) {
 
   def run(): IO[Unit] =
     for {

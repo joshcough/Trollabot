@@ -3,17 +3,20 @@ import cats.implicits._
 import doobie.Transactor
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
-import com.joshcough.trollabot.{Stream, TrollabotDb, TrollabotDbIO}
+import com.joshcough.trollabot.web.{Routes, Quotes}
+import com.joshcough.trollabot.{Stream, TrollabotDb}
 
 import java.sql.DriverManager
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
+import org.http4s._
+import org.http4s.implicits._
 import org.testcontainers.utility.DockerImageName
 
 object QuotesData {
   val daut: Stream = Stream(None, "daut", joined = false)
   val jonslow: Stream = Stream(None, "jonslow_", joined = false)
   val artoftroll: Stream = Stream(None, "artofthetroll", joined = true)
-  val streams: Seq[Stream] = List(daut, jonslow, artoftroll)
+  val streams: List[Stream] = List(daut, jonslow, artoftroll)
 
   val dautQuotes: List[String] = List(
     "I deserve to be trolled",
@@ -71,9 +74,31 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     } yield ()
   }
 
+  dbTest("Quote returns status code 200") { db =>
+    for {
+      _ <- insertDautQuotes(db)
+      _ <- assertIO(retQuote(db).map(_.status), Status.Ok)
+    } yield ()
+  }
+
+  dbTest("Quote returns a quote") { db =>
+    for {
+      _ <- insertDautQuotes(db)
+      expected = "{\"id\":2,\"qid\":1,\"text\":\"come to my healing spot man!\",\"userId\":\"jc\",\"channel\":1}"
+      _ <- assertIO(retQuote(db).flatMap(_.as[String]), expected)
+    } yield ()
+  }
+
+  // TODO: take stream, qid as arguments
+  private def retQuote(db: TrollabotDb[IO]): IO[Response[IO]] = {
+    val getHW = Request[IO](Method.GET, uri"/quote/daut/1")
+    val quotes = Quotes.impl[IO](db)
+    Routes.quoteRoutes(quotes).orNotFound(getHW)
+  }
+
   // helper functions below
 
-  def insertDautQuotes(db: TrollabotDbIO): IO[List[Unit]] =
+  def insertDautQuotes(db: TrollabotDb[IO]): IO[List[Unit]] =
     dautQuotes.map(q => insertAndGetQuote(db, q, "jc", daut)).sequence
 
   override def startContainers(): Containers = {
@@ -84,11 +109,11 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     p
   }
 
-  def dbTest[A](name: String)(f: TrollabotDbIO => IO[A]): Unit = test(name){
+  def dbTest[A](name: String)(f: TrollabotDb[IO] => IO[A]): Unit = test(name){
     withContainers { postgres =>
-      val db = TrollabotDbIO(TrollabotDb(Transactor.fromConnection(
+      val db = TrollabotDb[IO](Transactor.fromConnection(
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)
-      )))
+      ))
       for {
         _ <- db.createSchema
         _ <- db.deleteAllQuotes
@@ -99,7 +124,7 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     }
   }
 
-  def insertAndGetQuote(db: TrollabotDbIO, text: String, user: String, stream: Stream): IO[Unit] = {
+  def insertAndGetQuote(db: TrollabotDb[IO], text: String, user: String, stream: Stream): IO[Unit] = {
     val dbAction = for {
       newQO <- db.insertQuote(text, user, stream.name)
       newQ = newQO.getOrElse(fail(s"couldn't insert quote: text: $text, user: $user, stream: $stream"))

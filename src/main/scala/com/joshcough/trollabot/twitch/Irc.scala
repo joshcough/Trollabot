@@ -1,7 +1,8 @@
-package com.joshcough.trollabot
+package com.joshcough.trollabot.twitch
 
 import cats.effect.IO
 import cats.implicits._
+import com.joshcough.trollabot.Configuration
 
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter, PrintWriter}
 import java.net.SocketException
@@ -17,8 +18,9 @@ object Irc {
       res <- connect(config, server, port)(processChatMessage)
     } yield res
 
-  def connect(config: Configuration, server: String, port: Int)
-             (processChatMessage: (IrcBase, ChatMessage) => IO[Unit]): IO[Irc] =
+  def connect(config: Configuration, server: String, port: Int)(
+      processChatMessage: (IrcBase, ChatMessage) => IO[Unit]
+  ): IO[Irc] =
     IO {
       val socket: SSLSocket =
         SSLSocketFactory.getDefault
