@@ -1,5 +1,7 @@
 package com.joshcough.trollabot.web
 
+import cats.effect.Concurrent
+import cats.implicits._
 import com.joshcough.trollabot.{Quote, TrollabotDb}
 
 trait Quotes[F[_]] {
@@ -11,6 +13,6 @@ object Quotes {
 
   final case class QuoteError(e: Throwable) extends RuntimeException
 
-  def impl[F[_]](db: TrollabotDb[F]): Quotes[F] =
-    (channelName: String, qid: Int) => db.getQuoteByQid(channelName, qid)
+  def impl[F[_]: Concurrent](db: TrollabotDb[F]): Quotes[F] =
+    (channelName: String, qid: Int) => db.getQuoteByQid(channelName, qid).compile.toList.map(_.headOption)
 }

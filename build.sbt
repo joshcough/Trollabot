@@ -7,6 +7,7 @@ val CirceVersion = "0.14.1"
 val MunitVersion = "0.7.29"
 val LogbackVersion = "1.2.10"
 val MunitCatsEffectVersion = "1.0.7"
+val LogStageVersion = "1.0.10"
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
@@ -14,10 +15,11 @@ lazy val root = (project in file("."))
     name := "trollabot-scala",
     version := "0.1.0",
     scalaVersion := "2.13.8",
-    assembly / mainClass := Some("App"),
+    assembly / mainClass := Some("com.joshcough.trollabot.twitch.App"),
     Defaults.itSettings,
 //    addCompilerPlugin("io.tryp" % "splain" % "0.5.8" cross CrossVersion.patch),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
+    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full),
     IntegrationTest / fork := true,
     scalacOptions += "-deprecation",
     run / fork := true,
@@ -43,11 +45,26 @@ lazy val root = (project in file("."))
       "io.circe" %% "circe-generic" % CirceVersion,
       "org.scalameta" %% "munit" % MunitVersion % Test,
       "org.typelevel" %% "munit-cats-effect-3" % MunitCatsEffectVersion % Test,
-      "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime
+      "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime,
+      "io.7mind.izumi" %% "logstage-core" % LogStageVersion,
+      "io.7mind.izumi" %% "logstage-rendering-circe" % LogStageVersion
     ),
-    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full),
-    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     testFrameworks += new TestFramework("munit.Framework")
   )
 
 commands ++= Seq(format, formatCheck)
+
+//al ingressApiDeps = List(
+//  "org.typelevel"         %% "cats-effect"              %
+//    IngressApi.CatsEffectVersion,
+//  "com.github.pureconfig" %% "pureconfig-http4s"        % PureConfigVersion,
+//  "io.circe"              %% "circe-refined"            % CirceVersion,
+//  "io.github.jmcardon"    %% "tsec-jwt-sig"             %
+//    IngressApi.TsecVersion,
+//  "io.7mind.izumi"        %% "logstage-core"            % IngressApi.LogStage,
+//  "io.7mind.izumi"        %% "logstage-rendering-circe" % IngressApi.LogStage,
+//  "org.scalameta"         %% "munit"                    %
+//    IngressApi.MunitVersion           % "test, it",
+//  "org.typelevel"         %% "munit-cats-effect-3"      %
+//    IngressApi.MunitCatsEffectVersion % "test, it"
+//)

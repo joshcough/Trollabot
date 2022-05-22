@@ -1,51 +1,32 @@
 package com.joshcough.trollabot.twitch
 
-import cats.effect.IO
-import cats.implicits._
-import com.joshcough.trollabot.{Configuration, TrollabotDb}
+import cats.effect.Concurrent
+import com.joshcough.trollabot.{IrcConfig, TrollabotDb}
+import fs2.Pure
+import fs2.io.net.Network
+import logstage.strict.LogIOStrict
 
-object Chatbot {
-  def join(base: IrcBase, streamName: String): IO[Unit] =
-    for {
-      _ <- base.join(streamName)
-      _ <- base.privMsg(streamName, s"Hola mi hombres muy estupido!")
-    } yield ()
+case class Chatbot[F[_]: Concurrent: Network](ircConfig: IrcConfig, db: TrollabotDb[F]) {
 
-  def apply(config: Configuration, db: TrollabotDb[IO]): IO[Chatbot] = {
-    val commands: Commands = Commands(db)
+  val commands: Commands[F] = Commands(db)
 
-    for {
-      irc <- Irc.connectFromConfig(config)((base, chatMessage) => {
-        def handleResponse(chatMessage: ChatMessage, r: Response): IO[Unit] =
-          r match {
-            case RespondWith(s)   => base.privMsg(chatMessage.channel.name, s)
-            case Join(newChannel) => join(base, newChannel)
-            case Part             => base.part(chatMessage.channel.name)
-          }
-        for {
-          responses <- commands.findAndRun(chatMessage)
-          _ <- responses.map(r => handleResponse(chatMessage, r)).sequence
-        } yield ()
-      })
-    } yield Chatbot(db, irc)
+  def join(streamName: String): fs2.Stream[Pure, OutgoingMessage] =
+    fs2.Stream(
+      Irc.join(streamName),
+      Irc.privMsg(streamName, s"Hola mi hombres muy estupidos!")
+    )
+
+  def stream(implicit L: LogIOStrict[F]): fs2.Stream[F, Message] = {
+    val joinMessages: fs2.Stream[F, OutgoingMessage] = db.getJoinedStreams.flatMap(s => join(s.name))
+    Irc(ircConfig, joinMessages)(cm =>
+      commands.findAndRun(cm).flatMap {
+        case RespondWith(s)   => fs2.Stream(Irc.privMsg(cm.channel.name, s))
+        case Join(streamName) => for {
+          _ <- fs2.Stream.eval(L.debug(s"joining stream? $streamName"))
+          j <- join(streamName)
+        } yield j
+        case Part             => fs2.Stream(Irc.part(cm.channel.name))
+      }
+    ).stream
   }
-}
-
-case class Chatbot(db: TrollabotDb[IO], irc: Irc) {
-
-  def run(): IO[Unit] =
-    for {
-      _ <- irc.base.login()
-      streams <- db.getJoinedStreams
-      _ <- IO(println("Joining these streams: " + streams))
-      _ <- streams.traverse(s => Chatbot.join(irc.base, s.name))
-      _ <- irc.processMessages()
-      _ <- IO(println("Done processing messages, shutting down."))
-    } yield ()
-
-  def close(): IO[Unit] =
-    for {
-      _ <- irc.base.close()
-      _ <- IO(println("Trollabot shutting down!"))
-    } yield ()
 }
