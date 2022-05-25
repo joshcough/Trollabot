@@ -1,7 +1,5 @@
 package com.joshcough.trollabot
 
-import scala.language.implicitConversions
-
 object ParserCombinators extends ParserCombinators
 
 trait ScalaEnrichment {
@@ -31,17 +29,14 @@ trait ParserCombinators extends ScalaEnrichment {
 
   trait ParseResult[+T] {
     def get: T
-    def extract[A](pf: PartialFunction[T, A]): Unit
     def fold[A](failF: String => A)(sucF: (T, List[String]) => A): A
   }
   case class Failure(message: String) extends ParseResult[Nothing] {
     def get: Nothing = throw new IllegalStateException(message)
-    def extract[A](pf: PartialFunction[Nothing, A]): Unit = get
     def fold[A](failF: String => A)(sucF: (Nothing, List[String]) => A): A = failF(message)
   }
   case class Success[+T](value: T, rest: List[String]) extends ParseResult[T] {
     def get: T = value
-    def extract[A](pf: PartialFunction[T, A]): Unit = pf(get)
     def fold[A](failF: String => A)(sucF: (T, List[String]) => A): A = sucF(value, rest)
   }
 

@@ -3,7 +3,6 @@ package com.joshcough.trollabot
 import doobie._
 import doobie.implicits._
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import cats.implicits._
 
 case class Stream(id: Option[Int], name: String, joined: Boolean)

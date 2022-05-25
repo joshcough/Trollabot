@@ -61,7 +61,7 @@ case class IrcBase(config: Configuration, socket: SSLSocket, reader: BufferedRea
     IO {
       writer.println(s)
       writer.flush()
-      if (config.debug) println(s"< $s")
+      if (true) println(s"sending: $s")
     }
 
   def close(): IO[Unit] =
@@ -93,6 +93,7 @@ case class Irc(base: IrcBase, processChatMessage: (IrcBase, ChatMessage) => IO[U
   }
 
   def processIrcMessage(message: String): IO[Unit] = {
+    println(s"processing incoming message: $message")
     message match {
       case command if command.startsWith("PING") => base.pong()
       case PRIVMSGRegex(badges, username, _, channel, message) =>

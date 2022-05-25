@@ -7,7 +7,7 @@ object App {
     config <- Configuration.read()
     chatbot <- Chatbot(config)
     _ <- IO(Runtime.getRuntime.addShutdownHook(new Thread {
-      override def run(): Unit = IO(chatbot.close()).unsafeRunSync()
+      override def run(): Unit = chatbot.close().unsafeRunSync()
     }))
     _ <- chatbot.run()
   } yield ()

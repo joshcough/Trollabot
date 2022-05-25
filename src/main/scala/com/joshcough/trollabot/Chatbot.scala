@@ -41,7 +41,7 @@ case class Chatbot(db: TrollabotDbIO, irc: Irc) {
       _ <- irc.base.login()
       streams <- db.getJoinedStreams
       _ <- IO(println("Joining these streams: " + streams))
-      _ <- IO(streams.foreach(s => Chatbot.join(irc.base, s.name)))
+      _ <- streams.traverse(s => Chatbot.join(irc.base, s.name))
       _ <- irc.processMessages()
       _ <- IO(println("Done processing messages, shutting down."))
     } yield ()
