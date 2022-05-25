@@ -11,7 +11,7 @@ val LogStageVersion = "1.0.10"
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
-  .enablePlugins(BuildInfoPlugin)
+  .enablePlugins(BuildInfoPlugin, GitVersioning)
   .settings(
     name := "trollabot-scala",
     version := "0.1.0",
@@ -20,7 +20,8 @@ lazy val root = (project in file("."))
     buildInfoPackage := "com.joshcough.trollabot",
     buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
     buildInfoKeys ++= Seq[BuildInfoKey](
-      BuildInfoKey.action("buildTime") { System.currentTimeMillis }
+      BuildInfoKey.action("buildTime") { System.currentTimeMillis },
+      "commit" -> git.gitHeadCommit.value.get.take(7)
     ),
     Defaults.itSettings,
 //    addCompilerPlugin("io.tryp" % "splain" % "0.5.8" cross CrossVersion.patch),
