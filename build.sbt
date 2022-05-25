@@ -11,11 +11,17 @@ val LogStageVersion = "1.0.10"
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
+  .enablePlugins(BuildInfoPlugin)
   .settings(
     name := "trollabot-scala",
     version := "0.1.0",
     scalaVersion := "2.13.8",
     assembly / mainClass := Some("com.joshcough.trollabot.twitch.App"),
+    buildInfoPackage := "com.joshcough.trollabot",
+    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+    buildInfoKeys ++= Seq[BuildInfoKey](
+      BuildInfoKey.action("buildTime") { System.currentTimeMillis }
+    ),
     Defaults.itSettings,
 //    addCompilerPlugin("io.tryp" % "splain" % "0.5.8" cross CrossVersion.patch),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),

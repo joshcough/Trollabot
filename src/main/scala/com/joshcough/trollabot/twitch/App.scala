@@ -1,7 +1,7 @@
 package com.joshcough.trollabot.twitch
 
 import cats.effect.{ExitCode, IO, IOApp}
-import com.joshcough.trollabot.{Configuration, IrcConfig, Logging, LoggingInstances, TrollabotDb}
+import com.joshcough.trollabot.{BuildInfo, Configuration, IrcConfig, Logging, LoggingInstances, TrollabotDb}
 import doobie.Transactor
 import logstage.strict.LogIOStrict
 
@@ -18,6 +18,7 @@ object App extends IOApp {
     } yield m
 
   override def run(args: List[String]): IO[ExitCode] = for {
+    _ <- IO(println(s"Build time: ${BuildInfo.buildTime}"))
     messages <- fs2.Stream.eval(Configuration.read()).flatMap(streamFromConfig).compile.toList
     _ <- IO(println("messages: " + messages))
   } yield ExitCode.Success
