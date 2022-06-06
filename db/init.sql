@@ -1,5 +1,3 @@
-CREATE DATABASE trollabot WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8';
-
 ALTER DATABASE trollabot OWNER TO postgres;
 
 \connect trollabot

@@ -60,18 +60,3 @@ lazy val root = (project in file("."))
   )
 
 commands ++= Seq(format, formatCheck)
-
-//al ingressApiDeps = List(
-//  "org.typelevel"         %% "cats-effect"              %
-//    IngressApi.CatsEffectVersion,
-//  "com.github.pureconfig" %% "pureconfig-http4s"        % PureConfigVersion,
-//  "io.circe"              %% "circe-refined"            % CirceVersion,
-//  "io.github.jmcardon"    %% "tsec-jwt-sig"             %
-//    IngressApi.TsecVersion,
-//  "io.7mind.izumi"        %% "logstage-core"            % IngressApi.LogStage,
-//  "io.7mind.izumi"        %% "logstage-rendering-circe" % IngressApi.LogStage,
-//  "org.scalameta"         %% "munit"                    %
-//    IngressApi.MunitVersion           % "test, it",
-//  "org.typelevel"         %% "munit-cats-effect-3"      %
-//    IngressApi.MunitCatsEffectVersion % "test, it"
-//)

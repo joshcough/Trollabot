@@ -58,6 +58,7 @@ case class Commands[F[_]: Concurrent](db: TrollabotDb[F]) {
       (_, _, _: Unit) => db.getAllStreams.map(_.toString).reduce((l, r) => s"$l, $r").map(RespondWith)
     )
 
+  // TODO: kill this
   def withQuoteOr(s: fs2.Stream[F, Quote], msg: String): fs2.Stream[F, Response] =
     fs2.Stream.eval(s.compile.last).map(q => RespondWith(q.map(_.display).getOrElse(msg)))
 
@@ -82,11 +83,12 @@ case class Commands[F[_]: Concurrent](db: TrollabotDb[F]) {
       "!addQuote",
       ModOnly,
       slurp,
-      (channelName, chatUser, text: String) =>
-        withQuoteOr(
-          db.insertQuote(text, chatUser.username.name, channelName.name),
-          s"Something went wrong! I couldn't add stream ${channelName.name}. Somebody tell @artofthetroll"
-        )
+      (channelName, chatUser, text: String) => {
+        val f =
+          db.insertQuote(text, chatUser.username.name, channelName.name)
+            .map(q => RespondWith(q.display))
+        fs2.Stream.eval(f).handleError(_ => RespondWith("TODO"))
+      }
     )
 
   val delQuoteCommand: BotCommand[F] =
@@ -150,7 +152,9 @@ case class Commands[F[_]: Concurrent](db: TrollabotDb[F]) {
       case Some(command) =>
         println(s"command: $command")
         runBotCommand(command, msg, rest)
-      case None => fs2.Stream()
+      case None =>
+        println(s"couldn't find command for: $msg")
+        fs2.Stream.empty
     }
   }
 

@@ -132,6 +132,8 @@ object TrollabotQueries {
   val deleteAllStreams: Update0 = sql"delete from streams".update
 }
 
+// Paul likes more control over where transactions happen
+// and i want to follow up on that.
 case class TrollabotDb[M[_]: MonadCancelThrow](xa: Transactor[M]) {
   val q = TrollabotQueries
 
@@ -162,8 +164,8 @@ case class TrollabotDb[M[_]: MonadCancelThrow](xa: Transactor[M]) {
   def getAllQuotesForStream(stream: String): fs2.Stream[M, Quote] =
     runQuery(q.getAllQuotesForStream(stream))
 
-  def insertQuote(text: String, username: String, streamName: String): fs2.Stream[M, Quote] =
-    runQuery(q.insertQuote(text, username, streamName))
+  def insertQuote(text: String, username: String, streamName: String): M[Quote] =
+    q.insertQuote(text, username, streamName).unique.transact(xa)
 
   def deleteQuote(streamName: String, qid: Int): M[Int] =
     q.deleteQuote(streamName: String, qid: Int).run.transact(xa)

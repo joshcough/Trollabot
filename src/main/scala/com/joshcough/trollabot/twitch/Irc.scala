@@ -1,18 +1,29 @@
 package com.joshcough.trollabot.twitch
 
-import cats.effect.kernel.Concurrent
+import cats.Show
+import cats.effect.kernel.Async
 import cats.implicits._
 import com.comcast.ip4s._
 import com.joshcough.trollabot.IrcConfig
+import fs2.io.net.tls.TLSSocket
 import fs2.{INothing, Pipe, Stream, text}
 import fs2.io.net.{Network, Socket}
+import io.circe.Encoder
+import io.circe.generic.semiauto._
 import logstage.strict.LogIOStrict
 
 import scala.util.matching.Regex
 
-trait Message { val text: String }
+object Message {
+  implicit val messageEnc: Encoder[Message] = deriveEncoder
+  implicit val messageShow: Show[Message] = m => messageEnc(m).noSpaces
+}
+sealed trait Message { val text: String }
 case class IncomingMessage(text: String, responses: List[OutgoingMessage]) extends Message
 case class OutgoingMessage(text: String) extends Message
+object OutgoingMessage {
+  implicit val messageEnc: Encoder[OutgoingMessage] = deriveEncoder
+}
 
 object Irc {
 
@@ -55,8 +66,7 @@ object Irc {
 
 import Irc._
 
-case class Irc[F[_]: Network: Concurrent]
-  (ircConfig: IrcConfig, initialMessages: Stream[F, OutgoingMessage])(
+case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stream[F, OutgoingMessage])(
     processChatMessage: ChatMessage => Stream[F, OutgoingMessage]
 )(implicit L: LogIOStrict[F]) {
   val stream: fs2.Stream[F, Message] = {
@@ -67,71 +77,52 @@ case class Irc[F[_]: Network: Concurrent]
       _.through(outgoingBytesPipe).through(s.writes)
 
     def sendMessage(socket: Socket[F], message: OutgoingMessage): Stream[F, OutgoingMessage] =
-      Stream.eval(L.debug(s"sending message: ${message.text}")) *>
-      Stream[F, OutgoingMessage](message).observe(writeToSocketPipe(socket)) <*
-      Stream.eval(L.debug(s"sent message: ${message.text}"))
+      Stream[F, OutgoingMessage](message).observe(writeToSocketPipe(socket))
 
-    def handleIncomingMessage(socket: Socket[F], m: String): Stream[F, IncomingMessage] = m match {
-      case command if command.startsWith("PING") =>
-        sendMessage(socket, pong) *> Stream(IncomingMessage(command, List(pong)))
-      case s@PRIVMSGRegex(badges, username, _, channel, message) =>
-        val cm = createChatMessage(badges, username, channel, message)
-        for {
-          m <- processChatMessage(cm)
-          _ <- sendMessage(socket, m)
-        } yield IncomingMessage(s, List(m))
-      case x => Stream(IncomingMessage(x, Nil))
-    }
+    def handleIncomingMessage(socket: Socket[F], m: String): Stream[F, IncomingMessage] =
+      m.trim match {
+        case command if command.startsWith("PING") =>
+          sendMessage(socket, pong) *> Stream(IncomingMessage(command, List(pong)))
+        case _ @ PRIVMSGRegex(badges, username, _, channel, message) =>
+          val cm = createChatMessage(badges, username, channel, message)
+          processChatMessage(cm).flatMap(om => sendMessage(socket, om).map(_ => IncomingMessage(m, List(om))))
+        case x =>
+          Stream.eval(L.debug(s"Didn't match anything at all for $m")) *>
+          Stream(IncomingMessage(x, Nil))
+      }
 
     val loginStream: Stream[F, OutgoingMessage] = Stream(login(ircConfig): _*)
 
     withSocket { socket =>
-      val outGoing: Stream[F, OutgoingMessage] = (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
+      val outgoing: Stream[F, OutgoingMessage] = (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
+
       val incoming: Stream[F, IncomingMessage] = socket.reads.through(text.utf8.decode).flatMap { s =>
         for {
           _ <- Stream.eval(L.debug(s"handling incoming message: $s"))
           m <- handleIncomingMessage(socket, s)
         } yield m
       }
-      outGoing ++ incoming
+
+      outgoing ++ incoming.repeat
     }
   }
 
-  def withSocket[A](f: Socket[F] => Stream[F, A]): Stream[F, A] = {
+  def withSocket[A](f: TLSSocket[F] => Stream[F, A]): Stream[F, A] = {
     // todo: if we use pureconfig, we can have real types in the config and then remove this code
     val addr = (for {
       h <- Host.fromString(ircConfig.server)
       p <- Port.fromInt(ircConfig.port)
     } yield SocketAddress(h, p)).getOrElse(throw new RuntimeException("couldn't read server or port from config"))
 
+    import fs2.io.net.tls.TLSContext.Builder
+
     for {
-      _      <- Stream.eval(L.debug(s"Connecting to socket"))
+      _ <- Stream.eval(L.debug(s"Connecting to socket"))
       socket <- Stream.resource(Network[F].client(addr))
-      _      <- Stream.eval(L.debug(s"Connected to socket"))
-      res    <- f(socket)
+      tlsContext <- Stream.eval(Builder.forAsync[F].system)
+      tlsSocket <- Stream.resource(tlsContext.client(socket))
+      _ <- Stream.eval(L.debug(s"Connected to socket"))
+      res <- f(tlsSocket)
     } yield res
   }
 }
-
-
-//    def sendMessage2(s: Socket[F], message: OutgoingMessage): Stream[F, OutgoingMessage] = for {
-//      _ <- Stream.eval(L.debug(s"sending message: ${message.text}"))
-//      m <- Stream(message).observe()
-//
-//      Stream(s"${message.text}\n").
-//
-//        through(text.utf8.encode).through(s.writes).as(message)
-////      m <- Stream(s"${message.text}\n").through(text.utf8.encode).observe()
-//    } yield m
-////    def observe(p: Pipe[F, O, INothing])(implicit F: Concurrent[F]): Stream[F, O] =
-
-
-//    def logged: Pipe[F, OutgoingMessage, OutgoingMessage] = {
-//      s: Stream[F, OutgoingMessage] => s.evalMap(m => L.debug(s"sending message: ${m.text}") *> m.pure[F])
-//    }
-
-//    def sendMessage(s: Socket[F], message: OutgoingMessage): Stream[F, OutgoingMessage] = for {
-//      _ <- Stream.eval(L.debug(s"sending message: ${message.text}"))
-//      m <- Stream(message).observe(writeToSocketPipe(s))
-//      _ <- Stream.eval(L.debug(s"sent message: ${m.text}"))
-//    } yield m

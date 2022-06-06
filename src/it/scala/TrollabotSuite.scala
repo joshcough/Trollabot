@@ -3,9 +3,8 @@ import cats.implicits._
 import doobie.Transactor
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
-import com.joshcough.trollabot.twitch.App
 import com.joshcough.trollabot.web.{Quotes, Routes}
-import com.joshcough.trollabot.{Configuration, Stream, TrollabotDb}
+import com.joshcough.trollabot.{Stream, TrollabotDb}
 
 import java.sql.DriverManager
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
@@ -104,16 +103,6 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
     }
   }
 
-  test("Join ArtOfTheTroll") {
-    withDb { db =>
-      for {
-        _ <- insertAndGetQuote (db, "muy", "jc", artoftroll)
-        config <- Configuration.read()
-        _ <- App.streamFromDb(config.irc, db.xa).compile.drain
-      } yield ()
-    }
-  }
-
   // TODO: take stream, qid as arguments
   private def retQuote(db: TrollabotDb[IO]): IO[Response[IO]] = {
     val getHW = Request[IO](Method.GET, uri"/quote/daut/1")
@@ -150,9 +139,7 @@ class TrollabotSuite extends CatsEffectSuite with ScalaCheckEffectSuite with Tes
 
   def insertAndGetQuote(db: TrollabotDb[IO], text: String, user: String, stream: Stream): IO[Unit] = {
     val dbAction = for {
-      newQO <- db.insertQuote(text, user, stream.name).compile.last
-      newQ = newQO.getOrElse(fail(s"couldn't insert quote: text: $text, user: $user, stream: $stream"))
-
+      newQ <- db.insertQuote(text, user, stream.name)
       newQO_ <- db.getQuoteByQid(stream.name, newQ.qid).compile.last
       newQ_ = newQO_.getOrElse(fail(
         s"couldn't retrieve inserted quote: text: $text, user: $user, stream: $stream"
