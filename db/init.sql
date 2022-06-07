@@ -1,66 +1,22 @@
---CREATE DATABASE trollabot WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8';
-
 ALTER DATABASE trollabot OWNER TO postgres;
 
 \connect trollabot
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
-SET default_tablespace = '';
-
-SET default_with_oids = false;
-
 CREATE TABLE public.quotes (
-    id integer NOT NULL,
+    id SERIAL PRIMARY KEY,
     qid integer NOT NULL,
     text character varying NOT NULL,
     user_id character varying NOT NULL,
-    channel integer NOT NULL
+    channel integer NOT NULL,
+    CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid)
 );
-
-CREATE SEQUENCE public.quotes_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE public.quotes_id_seq OWNED BY public.quotes.id;
 
 CREATE TABLE public.streams (
     id SERIAL PRIMARY KEY,
     name character varying NOT NULL,
     joined boolean NOT NULL,
-    primary key id
+    CONSTRAINT unique_stream_name UNIQUE (name)
 );
-
-ALTER TABLE public.streams OWNER TO postgres;
-
-CREATE SEQUENCE public.streams_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER TABLE public.streams_id_seq OWNER TO postgres;
-
-ALTER SEQUENCE public.streams_id_seq OWNED BY public.streams.id;
-
-ALTER TABLE ONLY public.quotes ALTER COLUMN id SET DEFAULT nextval('public.quotes_id_seq'::regclass);
-
-ALTER TABLE ONLY public.streams ALTER COLUMN id SET DEFAULT nextval('public.streams_id_seq'::regclass);
 
 COPY public.streams (id, name, joined) FROM stdin;
 1	daut	f
@@ -68,18 +24,7 @@ COPY public.streams (id, name, joined) FROM stdin;
 3	artofthetroll	t
 \.
 
-SELECT pg_catalog.setval('public.quotes_id_seq', 8, true);
-
 SELECT pg_catalog.setval('public.streams_id_seq', 3, true);
-
-ALTER TABLE ONLY public.quotes
-    ADD CONSTRAINT quotes_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.streams
-    ADD CONSTRAINT streams_name_key UNIQUE (name);
-
-ALTER TABLE ONLY public.streams
-    ADD CONSTRAINT streams_pkey PRIMARY KEY (id);
 
 COPY public.quotes (id, text, qid, user_id, channel) FROM stdin;
 618	such a loomie fucker	585	carloscnsz	0
@@ -2493,5 +2438,3 @@ COPY public.quotes (id, text, qid, user_id, channel) FROM stdin;
 \.
 
 SELECT pg_catalog.setval('public.quotes_id_seq', 2684, true);
-SELECT pg_catalog.setval('public.streams_id_seq', 2, false);
-
