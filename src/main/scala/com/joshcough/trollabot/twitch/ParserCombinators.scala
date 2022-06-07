@@ -30,14 +30,17 @@ trait ParserCombinators extends ScalaEnrichment {
   trait ParseResult[+T] {
     def get: T
     def fold[A](failF: String => A)(sucF: (T, List[String]) => A): A
+    def toEither: Either[String, T]
   }
   case class Failure(message: String) extends ParseResult[Nothing] {
     def get: Nothing = throw new IllegalStateException(message)
     def fold[A](failF: String => A)(sucF: (Nothing, List[String]) => A): A = failF(message)
+    def toEither: Either[String, Nothing] = Left(message)
   }
   case class Success[+T](value: T, rest: List[String]) extends ParseResult[T] {
     def get: T = value
     def fold[A](failF: String => A)(sucF: (T, List[String]) => A): A = sucF(value, rest)
+    def toEither: Either[String, T] = Right(value)
   }
 
   object Parser {

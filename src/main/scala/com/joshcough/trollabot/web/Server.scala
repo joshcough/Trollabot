@@ -3,7 +3,7 @@ package com.joshcough.trollabot.web
 import cats.effect.{Async, Resource}
 import cats.syntax.all._
 import com.comcast.ip4s._
-import com.joshcough.trollabot.TrollabotDb
+import doobie.util.transactor.Transactor
 import fs2.Stream
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
@@ -11,10 +11,10 @@ import org.http4s.server.middleware.Logger
 
 object Server {
 
-  def stream[F[_]: Async](db: TrollabotDb[F]): Stream[F, Nothing] = {
+  def stream[F[_]: Async](xa: Transactor.Aux[F, Unit]): Stream[F, Nothing] = {
     val httpApp = (
       Routes.healthRoutes[F](HealthCheck.impl[F]) <+>
-        Routes.quoteRoutes[F](Quotes.impl[F](db))
+        Routes.quoteRoutes[F](Quotes.impl[F](xa))
     ).orNotFound
 
     val finalHttpApp = Logger.httpApp(true, true)(httpApp)

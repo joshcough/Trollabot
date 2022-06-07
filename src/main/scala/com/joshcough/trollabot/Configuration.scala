@@ -1,9 +1,9 @@
 package com.joshcough.trollabot
 
 import cats.effect.IO
+import com.joshcough.trollabot.twitch.IrcConfig
 import com.typesafe.config.{Config, ConfigFactory}
 
-case class IrcConfig(token: String, username: String, server: String, port: Int)
 case class Configuration(irc: IrcConfig, dbUrl: String, debug: Boolean)
 
 object Configuration {
