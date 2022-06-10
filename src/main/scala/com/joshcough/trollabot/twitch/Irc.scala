@@ -12,7 +12,7 @@ import io.circe.generic.semiauto._
 import logstage.strict.LogIOStrict
 import scala.util.matching.Regex
 
-case class IrcConfig(token: String, username: String, server: String, port: Int)
+case class IrcConfig(token: String, username: String, server: String, port: Port)
 
 object Message {
   implicit val messageEnc: Encoder[Message] = deriveEncoder
@@ -111,8 +111,7 @@ case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stre
     // todo: if we use pureconfig, we can have real types in the config and then remove this code
     val addr = (for {
       h <- Host.fromString(ircConfig.server)
-      p <- Port.fromInt(ircConfig.port)
-    } yield SocketAddress(h, p)).getOrElse(throw new RuntimeException("couldn't read server or port from config"))
+    } yield SocketAddress(h, ircConfig.port)).getOrElse(throw new RuntimeException("couldn't read server or port from config"))
 
     import fs2.io.net.tls.TLSContext.Builder
 

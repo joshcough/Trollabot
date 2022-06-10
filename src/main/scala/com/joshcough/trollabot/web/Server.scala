@@ -11,7 +11,7 @@ import org.http4s.server.middleware.Logger
 
 object Server {
 
-  def stream[F[_]: Async](xa: Transactor.Aux[F, Unit]): Stream[F, Nothing] = {
+  def stream[F[_]: Async](xa: Transactor[F]): Stream[F, Nothing] = {
     val httpApp = (
       Routes.healthRoutes[F](HealthCheck.impl[F]) <+>
         Routes.quoteRoutes[F](Quotes.impl[F](xa))

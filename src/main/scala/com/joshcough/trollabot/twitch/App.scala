@@ -15,7 +15,10 @@ object App extends IOApp {
     Chatbot[IO](ircConfig, xa).stream
 
   def streamFromDefaultConfig: fs2.Stream[IO, Message] =
-    fs2.Stream.eval(Configuration.read()).flatMap(streamFromConfig)
+    fs2.Stream.eval(Configuration.read()).flatMap {
+      case Left(_) => fs2.Stream.empty
+      case Right(config) => streamFromConfig(config)
+    }
 
   override def run(args: List[String]): IO[ExitCode] =
     streamFromDefaultConfig.through(fs2.io.stdoutLines()).compile.drain.as(ExitCode.Success)
