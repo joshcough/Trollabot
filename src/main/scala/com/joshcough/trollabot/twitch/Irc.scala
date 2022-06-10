@@ -4,15 +4,15 @@ import cats.Show
 import cats.effect.kernel.Async
 import cats.implicits._
 import com.comcast.ip4s._
-import com.joshcough.trollabot.IrcConfig
 import fs2.io.net.tls.TLSSocket
 import fs2.{INothing, Pipe, Stream, text}
 import fs2.io.net.{Network, Socket}
 import io.circe.Encoder
 import io.circe.generic.semiauto._
 import logstage.strict.LogIOStrict
-
 import scala.util.matching.Regex
+
+case class IrcConfig(token: String, username: String, server: String, port: Int)
 
 object Message {
   implicit val messageEnc: Encoder[Message] = deriveEncoder
@@ -83,12 +83,12 @@ case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stre
       m.trim match {
         case command if command.startsWith("PING") =>
           sendMessage(socket, pong) *> Stream(IncomingMessage(command, List(pong)))
-        case _ @ PRIVMSGRegex(badges, username, _, channel, message) =>
+        case _ @PRIVMSGRegex(badges, username, _, channel, message) =>
           val cm = createChatMessage(badges, username, channel, message)
           processChatMessage(cm).flatMap(om => sendMessage(socket, om).map(_ => IncomingMessage(m, List(om))))
         case x =>
           Stream.eval(L.debug(s"Didn't match anything at all for $m")) *>
-          Stream(IncomingMessage(x, Nil))
+            Stream(IncomingMessage(x, Nil))
       }
 
     val loginStream: Stream[F, OutgoingMessage] = Stream(login(ircConfig): _*)

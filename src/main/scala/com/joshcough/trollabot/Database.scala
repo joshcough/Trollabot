@@ -1,10 +1,9 @@
 package com.joshcough.trollabot
 
-import cats.effect.kernel.MonadCancelThrow
-import doobie._
-import doobie.implicits._
 import cats.effect.Concurrent
 import cats.implicits._
+import doobie._
+import doobie.implicits._
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.http4s.{EntityDecoder, EntityEncoder}
@@ -134,47 +133,44 @@ object TrollabotQueries {
 
 // Paul likes more control over where transactions happen
 // and i want to follow up on that.
-case class TrollabotDb[M[_]: MonadCancelThrow](xa: Transactor[M]) {
+object TrollabotDb {
   val q = TrollabotQueries
 
   // streams
-  def insertStream(streamName: String): M[Int] =
-    q.insertStream(Stream(None, streamName, joined = false)).run.transact(xa)
+  def insertStream(streamName: String): ConnectionIO[Int] =
+    q.insertStream(Stream(None, streamName, joined = false)).run
 
-  def partStream(streamName: String): M[Int] = q.partStream(streamName).run.transact(xa)
+  def partStream(streamName: String): ConnectionIO[Int] = q.partStream(streamName).run
 
-  val getAllStreams: fs2.Stream[M, Stream] = runQuery(q.getAllStreams)
+  val getAllStreams: fs2.Stream[ConnectionIO, Stream] = q.getAllStreams.stream
 
-  val getJoinedStreams: fs2.Stream[M, Stream] = runQuery(q.getJoinedStreams)
+  val getJoinedStreams: fs2.Stream[ConnectionIO, Stream] = q.getJoinedStreams.stream
 
-  def joinStream(streamName: String): M[Int] = q.joinStream(streamName).run.transact(xa)
+  def joinStream(streamName: String): ConnectionIO[Int] = q.joinStream(streamName).run
 
-  def doesStreamExist(streamName: String): fs2.Stream[M, Boolean] =
-    runQuery(q.doesStreamExist(streamName))
+  def doesStreamExist(streamName: String): ConnectionIO[Boolean] =
+    q.doesStreamExist(streamName).unique
 
-  // quotes
-  def getQuoteByQid(stream: String, qid: Int): fs2.Stream[M, Quote] =
-    runQuery(q.getQuoteByQid(stream, qid))
+  def getQuoteByQid(stream: String, qid: Int): ConnectionIO[Option[Quote]] =
+    q.getQuoteByQid(stream, qid).option
 
-  def getRandomQuoteForStream(stream: String): fs2.Stream[M, Quote] =
-    runQuery(q.getRandomQuoteForStream(stream))
+  def getRandomQuoteForStream(stream: String): ConnectionIO[Option[Quote]] =
+    q.getRandomQuoteForStream(stream).option
 
-  val getAllQuotes: fs2.Stream[M, Quote] = runQuery(q.getAllQuotes)
+  val getAllQuotes: fs2.Stream[ConnectionIO, Quote] = q.getAllQuotes.stream
 
-  def getAllQuotesForStream(stream: String): fs2.Stream[M, Quote] =
-    runQuery(q.getAllQuotesForStream(stream))
+  def getAllQuotesForStream(stream: String): fs2.Stream[ConnectionIO, Quote] =
+    q.getAllQuotesForStream(stream).stream
 
-  def insertQuote(text: String, username: String, streamName: String): M[Quote] =
-    q.insertQuote(text, username, streamName).unique.transact(xa)
+  def insertQuote(text: String, username: String, streamName: String): ConnectionIO[Quote] =
+    q.insertQuote(text, username, streamName).unique
 
-  def deleteQuote(streamName: String, qid: Int): M[Int] =
-    q.deleteQuote(streamName: String, qid: Int).run.transact(xa)
+  def deleteQuote(streamName: String, qid: Int): ConnectionIO[Int] =
+    q.deleteQuote(streamName: String, qid: Int).run
 
   // testing
-  val createSchema: M[Int] = q.recreateSchema.transact(xa)
-  val deleteAllQuotes: M[Int] = q.deleteAllQuotes.run.transact(xa)
-  val deleteAllStreams: M[Int] = q.deleteAllStreams.run.transact(xa)
+  val createSchema: ConnectionIO[Int] = q.recreateSchema
+  val deleteAllQuotes: ConnectionIO[Int] = q.deleteAllQuotes.run
+  val deleteAllStreams: ConnectionIO[Int] = q.deleteAllStreams.run
 
-  // helper
-  def runQuery[A](q: Query0[A]): fs2.Stream[M, A] = q.stream.transact(xa)
 }

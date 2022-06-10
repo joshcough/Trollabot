@@ -1,7 +1,7 @@
 package com.joshcough.trollabot.twitch
 
 import cats.effect.{ExitCode, IO, IOApp}
-import com.joshcough.trollabot.{Configuration, IrcConfig, Logging, LoggingInstances, TrollabotDb}
+import com.joshcough.trollabot.{Configuration, Logging, LoggingInstances}
 import doobie.Transactor
 import logstage.strict.LogIOStrict
 
@@ -12,10 +12,11 @@ object App extends IOApp {
     streamFromDb(config.irc, Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl))
 
   def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO]): fs2.Stream[IO, Message] =
-    Chatbot[IO](ircConfig, TrollabotDb(xa)).stream
+    Chatbot[IO](ircConfig, xa).stream
 
-  override def run(args: List[String]): IO[ExitCode] = {
-    val messages = fs2.Stream.eval(Configuration.read()).flatMap(streamFromConfig)
-    messages.through(fs2.io.stdoutLines()).compile.drain.as(ExitCode.Success)
-  }
+  def streamFromDefaultConfig: fs2.Stream[IO, Message] =
+    fs2.Stream.eval(Configuration.read()).flatMap(streamFromConfig)
+
+  override def run(args: List[String]): IO[ExitCode] =
+    streamFromDefaultConfig.through(fs2.io.stdoutLines()).compile.drain.as(ExitCode.Success)
 }
