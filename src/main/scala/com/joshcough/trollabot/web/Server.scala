@@ -1,8 +1,9 @@
 package com.joshcough.trollabot.web
 
-import cats.effect.{Async, Resource}
+import cats.effect.{Async, IO, Resource}
 import cats.syntax.all._
 import com.comcast.ip4s._
+import com.joshcough.trollabot.Configuration
 import doobie.util.transactor.Transactor
 import fs2.Stream
 import org.http4s.ember.server.EmberServerBuilder
@@ -10,6 +11,15 @@ import org.http4s.implicits._
 import org.http4s.server.middleware.Logger
 
 object Server {
+
+  def streamFromConfig(config: Configuration): fs2.Stream[IO, Nothing] =
+    stream(Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl))
+
+  def streamFromDefaultConfig: fs2.Stream[IO, Nothing] =
+    fs2.Stream.eval(Configuration.read()).flatMap {
+      case Left(_) => fs2.Stream.empty
+      case Right(config) => streamFromConfig(config)
+    }
 
   def stream[F[_]: Async](xa: Transactor[F]): Stream[F, Nothing] = {
     val httpApp = (
