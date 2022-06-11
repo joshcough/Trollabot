@@ -10,10 +10,9 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
 import org.http4s.server.middleware.Logger
 
-object Server {
+object WebServer {
 
-  def streamFromConfig(config: Configuration): fs2.Stream[IO, Nothing] =
-    stream(Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl))
+  def streamFromConfig(config: Configuration): fs2.Stream[IO, Nothing] = stream(config.xa[IO])
 
   def streamFromDefaultConfig: fs2.Stream[IO, Nothing] =
     fs2.Stream.eval(Configuration.read()).flatMap {

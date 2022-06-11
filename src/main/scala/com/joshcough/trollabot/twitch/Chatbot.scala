@@ -12,7 +12,10 @@ object Chatbot {
   implicit val logger: LogIOStrict[IO] = Logging.impl[IO](LoggingInstances.productionLogger)
 
   def streamFromConfig(config: Configuration): fs2.Stream[IO, Message] =
-    Chatbot[IO](config.irc, Transactor.fromDriverManager[IO]("org.postgresql.Driver", config.dbUrl)).stream
+    streamFromDb(config.irc, config.xa)
+
+  def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO]): fs2.Stream[IO, Message] =
+    Chatbot[IO](ircConfig, xa).stream
 
   def streamFromDefaultConfig: fs2.Stream[IO, Message] =
     fs2.Stream.eval(Configuration.read()).flatMap {
