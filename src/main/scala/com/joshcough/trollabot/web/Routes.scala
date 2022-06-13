@@ -12,14 +12,26 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      // TODO: figure out how to type these params as Int, a custom type, or whatever.
-      case GET -> Root / "quote" / stream / qid =>
+      case GET -> Root / "quote" / stream / IntVar(qid) =>
         for {
-          quote <- Q.getQuote(stream, qid.toInt)
+          quote <- Q.getQuote(stream, qid)
           resp: Response[F] <- Ok(quote.getOrElse(Quote(None, -1, "No quote found", "", 1)))
         } yield resp
 
       case GET -> Root / "quotes" / stream => Ok(Q.getQuotes(stream))
+    }
+  }
+
+  def inspectionRoutes[F[_]: Sync](I: Inspections[F]): HttpRoutes[F] = {
+    val dsl = new Http4sDsl[F] {}
+    import dsl._
+    HttpRoutes.of[F] {
+      case GET -> Root / "inspect" / "streams" / "joined" => Ok(I.getAllStreams)
+      case GET -> Root / "inspect" / "streams" => Ok(I.getAllStreams)
+      case GET -> Root / "inspect" / "quotes" / "count" / streamName =>
+        Ok(I.countQuotesInStream(streamName))
+      case GET -> Root / "inspect" / "quotes" / "count" =>
+        Ok(I.countQuotes)
     }
   }
 

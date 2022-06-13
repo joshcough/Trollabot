@@ -23,6 +23,7 @@ object WebServer {
   def stream[F[_]: Async](xa: Transactor[F]): Stream[F, Nothing] = {
     val httpApp = (
       Routes.healthRoutes[F](HealthCheck.impl[F]) <+>
+        Routes.quoteRoutes[F](Quotes.impl[F](xa)) <+>
         Routes.quoteRoutes[F](Quotes.impl[F](xa))
     ).orNotFound
 

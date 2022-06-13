@@ -23,10 +23,10 @@ object Quote {
 }
 
 object Stream {
-  implicit val streamDecoder: Decoder[Quote] = deriveDecoder[Quote]
-  implicit def streamEntityDecoder[F[_]: Concurrent]: EntityDecoder[F, Quote] = jsonOf
-  implicit val streamEncoder: Encoder[Quote] = deriveEncoder[Quote]
-  implicit def streamEntityEncoder[F[_]]: EntityEncoder[F, Quote] = jsonEncoderOf
+  implicit val streamDecoder: Decoder[Stream] = deriveDecoder[Stream]
+  implicit def streamEntityDecoder[F[_]: Concurrent]: EntityDecoder[F, Stream] = jsonOf
+  implicit val streamEncoder: Encoder[Stream] = deriveEncoder[Stream]
+  implicit def streamEntityEncoder[F[_]]: EntityEncoder[F, Stream] = jsonEncoderOf
 }
 
 object TrollabotQueries {
@@ -64,6 +64,10 @@ object TrollabotQueries {
       """
 
   val getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
+
+  val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
+  def countQuotesInStream(streamName: String): Query0[Int] =
+    (fr"select count(*)" ++ quotesJoinStreams(streamName)).query[Int]
 
   def getAllQuotesForStream(streamName: String): Query0[Quote] =
     (fr"select q.*" ++ quotesJoinStreams(streamName)).query[Quote]
@@ -161,6 +165,10 @@ object TrollabotDb {
 
   def getAllQuotesForStream(stream: String): fs2.Stream[ConnectionIO, Quote] =
     q.getAllQuotesForStream(stream).stream
+
+  val countQuotes: ConnectionIO[Int] = q.countQuotes.unique
+  def countQuotesInStream(streamName: String): ConnectionIO[Int] =
+    q.countQuotesInStream(streamName).unique
 
   def insertQuote(text: String, username: String, streamName: String): ConnectionIO[Quote] =
     q.insertQuote(text, username, streamName).unique
