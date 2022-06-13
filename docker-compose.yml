@@ -22,3 +22,5 @@ services:
     environment:
       DATABASE_URL: "jdbc:postgresql://db:5432/trollabot?user=postgres&password=password"
       TROLLABOT_TOKEN: "${TROLLABOT_TOKEN}"
+    ports:
+      - '8080:8080'

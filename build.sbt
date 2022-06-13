@@ -23,10 +23,13 @@ lazy val root = (project in file("."))
     assembly / mainClass := Some("com.joshcough.trollabot.App"),
     buildInfoPackage := "com.joshcough.trollabot",
     buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoKeys ++= Seq[BuildInfoKey](
-      BuildInfoKey.action("buildTime") { System.currentTimeMillis },
-      "commit" -> git.gitHeadCommit.value.get.take(7)
-    ),
+    buildInfoKeys ++= {
+      val t = System.currentTimeMillis
+      Seq[BuildInfoKey](
+        BuildInfoKey.action("buildTime") { t },
+        "commit" -> git.gitHeadCommit.value.fold("build_time_" + t.toString)(_.take(7))
+      )
+    },
     Defaults.itSettings,
 //    addCompilerPlugin("io.tryp" % "splain" % "0.5.8" cross CrossVersion.patch),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),

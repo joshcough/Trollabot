@@ -26,18 +26,14 @@ object WebServer {
         Routes.quoteRoutes[F](Quotes.impl[F](xa))
     ).orNotFound
 
-    val finalHttpApp = Logger.httpApp(true, true)(httpApp)
-
-    for {
-      exitCode <- Stream.resource(
-        EmberServerBuilder
-          .default[F]
-          .withHost(ipv4"0.0.0.0")
-          .withPort(port"8080")
-          .withHttpApp(finalHttpApp)
-          .build >>
-          Resource.eval(Async[F].never)
-      )
-    } yield exitCode
+    Stream.resource(
+      EmberServerBuilder
+        .default[F]
+        .withHost(ipv4"0.0.0.0")
+        .withPort(port"8080")
+        .withHttpApp(Logger.httpApp(true, true)(httpApp))
+        .build >>
+        Resource.eval(Async[F].never)
+    )
   }.drain
 }

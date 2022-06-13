@@ -1,7 +1,7 @@
 package com.joshcough.trollabot.twitch
 
 import cats.effect.{Async, IO}
-import com.joshcough.trollabot.{Configuration, Logging, LoggingInstances, TrollabotDb}
+import com.joshcough.trollabot.{Configuration, TrollabotDb}
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 import fs2.Pure
@@ -9,15 +9,14 @@ import fs2.io.net.Network
 import logstage.strict.LogIOStrict
 
 object Chatbot {
-  implicit val logger: LogIOStrict[IO] = Logging.impl[IO](LoggingInstances.productionLogger)
 
-  def streamFromConfig(config: Configuration): fs2.Stream[IO, Message] =
+  def streamFromConfig(config: Configuration)(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
     streamFromDb(config.irc, config.xa)
 
-  def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO]): fs2.Stream[IO, Message] =
+  def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO])(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
     Chatbot[IO](ircConfig, xa).stream
 
-  def streamFromDefaultConfig: fs2.Stream[IO, Message] =
+  def streamFromDefaultConfig(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
     fs2.Stream.eval(Configuration.read()).flatMap {
       case Left(_) => fs2.Stream.empty
       case Right(config) => streamFromConfig(config)

@@ -25,6 +25,8 @@ object Logging {
     LogIOStrict.fromLogger[F](izLogger)(syncSafeInstance)
   }
 
+
+
 }
 
 object LoggingInstances {
