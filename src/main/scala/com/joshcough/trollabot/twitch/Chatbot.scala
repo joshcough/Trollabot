@@ -18,7 +18,7 @@ object Chatbot {
 
   def streamFromDefaultConfig(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
     fs2.Stream.eval(Configuration.read()).flatMap {
-      case Left(_) => fs2.Stream.empty
+      case Left(_)       => fs2.Stream.empty
       case Right(config) => streamFromConfig(config)
     }
 }

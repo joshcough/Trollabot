@@ -19,6 +19,6 @@ object Configuration extends Ip4sCodecs {
 sealed trait Ip4sCodecs {
   implicit val ip4sPortReader: ConfigReader[ip4s.Port] =
     ConfigReader.fromStringOpt(ip4s.Port.fromString)
-  implicit val ip4sPortEncoder: Encoder[ip4s.Port]     =
+  implicit val ip4sPortEncoder: Encoder[ip4s.Port] =
     Encoder.encodeInt.contramap(_.value)
 }

@@ -16,7 +16,7 @@ object WebServer {
 
   def streamFromDefaultConfig: fs2.Stream[IO, Nothing] =
     fs2.Stream.eval(Configuration.read()).flatMap {
-      case Left(_) => fs2.Stream.empty
+      case Left(_)       => fs2.Stream.empty
       case Right(config) => streamFromConfig(config)
     }
 

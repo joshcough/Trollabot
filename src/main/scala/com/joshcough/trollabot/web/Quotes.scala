@@ -13,11 +13,12 @@ trait Quotes[F[_]] {
 object Quotes {
   def apply[F[_]](implicit ev: Quotes[F]): Quotes[F] = ev
 
-  def impl[F[_]: MonadCancelThrow](xa: Transactor[F]): Quotes[F] = new Quotes[F] {
-    override def getQuote(channelName: String, qid: Int): F[Option[Quote]] =
-      TrollabotDb.getQuoteByQid(channelName, qid).transact(xa)
+  def impl[F[_]: MonadCancelThrow](xa: Transactor[F]): Quotes[F] =
+    new Quotes[F] {
+      override def getQuote(channelName: String, qid: Int): F[Option[Quote]] =
+        TrollabotDb.getQuoteByQid(channelName, qid).transact(xa)
 
-    override def getQuotes(channelName: String): fs2.Stream[F, Quote] =
-      TrollabotDb.getAllQuotesForStream(channelName).transact(xa)
-  }
+      override def getQuotes(channelName: String): fs2.Stream[F, Quote] =
+        TrollabotDb.getAllQuotesForStream(channelName).transact(xa)
+    }
 }
