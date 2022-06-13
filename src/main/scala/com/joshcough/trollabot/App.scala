@@ -8,12 +8,11 @@ import fs2._
 import logstage.strict.LogIOStrict
 
 object App extends IOApp {
-  implicit val logger: LogIOStrict[IO] = Logging.impl[IO](LoggingInstances.productionLogger)
 
   override def run(args: List[String]): IO[ExitCode] =
-    streamFromDefaultConfig.compile.drain.as(ExitCode.Success)
+    streamFromDefaultConfig(LoggingImplicits.productionLogger).compile.drain.as(ExitCode.Success)
 
-  def streamFromDefaultConfig: Stream[IO, Message] =
+  def streamFromDefaultConfig(implicit L: LogIOStrict[IO]): Stream[IO, Message] =
     Stream.eval(Configuration.read()).flatMap {
       case Left(err) =>
         val errMsg = s"Couldn't read configuration ${err.prettyPrint()}"
@@ -21,12 +20,12 @@ object App extends IOApp {
       case Right(config) => streamFromConfig(config)
     }
 
-  def streamFromConfig(config: Configuration): Stream[IO, Message] = {
+  def streamFromConfig(config: Configuration)(implicit L: LogIOStrict[IO]): Stream[IO, Message] = {
     val xa = config.xa[IO]
     val bot = Chatbot.streamFromDb(config.irc, xa)
     val webapp = WebServer.stream(xa)
     logDebugS("=== Welcome to trollabot! ===") *> bot.concurrently(webapp)
   }
 
-  def logDebugS(msg: String): Stream[IO, Unit] = Stream.eval(logger.debug(s"$msg"))
+  def logDebugS(msg: String)(implicit L: LogIOStrict[IO]): Stream[IO, Unit] = Stream.eval(L.debug(s"$msg"))
 }
