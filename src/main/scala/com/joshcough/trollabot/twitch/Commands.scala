@@ -28,7 +28,8 @@ object Response {
   implicit val encodeResponse: Encoder[Response] = Encoder.instance {
     case r @ RespondWith(_) => r.asJson
     case r @ Join(_)        => r.asJson
-    case r @ Part           => r.asJson
+    // TODO: is this correct, or BS?
+    case _ @Part => "Part".asJson
   }
   implicit val decodeResponse: Decoder[Response] =
     List[Decoder[Response]](
@@ -75,34 +76,47 @@ object ChannelName {
   implicit val logstageCodec: LogstageCodec[ChannelName] = LogstageCirceCodec.derived[ChannelName]
 }
 
-trait Action
+sealed trait Action
 case object PrintStreamsAction extends Action
 case class GetExactQuoteAction(channelName: ChannelName, qid: Int) extends Action
+case class SearchQuotesAction(channelName: ChannelName, like: String) extends Action
 case class GetRandomQuoteAction(channelName: ChannelName) extends Action
 case class AddQuoteAction(channelName: ChannelName, chatUser: ChatUser, text: String) extends Action
 case class DelQuoteAction(channelName: ChannelName, n: Int) extends Action
 case class PartAction(channelName: ChannelName) extends Action
 case class JoinAction(newChannelName: String) extends Action
+// TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
+case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: String) extends Action
+case class IncCounterAction(channelName: ChannelName, counterName: String) extends Action
+case class HelpAction(commandName: String) extends Action
 
 object Action {
   implicit val encodeResponse: Encoder[Action] = Encoder.instance {
-    case r @ PrintStreamsAction        => r.asJson
+    case _ @PrintStreamsAction         => "PrintStreamsAction".asJson
     case r @ GetExactQuoteAction(_, _) => r.asJson
+    case r @ SearchQuotesAction(_, _)  => r.asJson
     case r @ GetRandomQuoteAction(_)   => r.asJson
     case r @ AddQuoteAction(_, _, _)   => r.asJson
     case r @ DelQuoteAction(_, _)      => r.asJson
     case r @ PartAction(_)             => r.asJson
     case r @ JoinAction(_)             => r.asJson
+    case r @ AddCounterAction(_, _, _) => r.asJson
+    case r @ IncCounterAction(_, _)    => r.asJson
+    case r @ HelpAction(_)             => r.asJson
   }
   implicit val decodeResponse: Decoder[Action] =
     List[Decoder[Action]](
       Decoder[PrintStreamsAction.type].widen,
       Decoder[GetExactQuoteAction].widen,
+      Decoder[SearchQuotesAction].widen,
       Decoder[GetRandomQuoteAction].widen,
       Decoder[AddQuoteAction].widen,
       Decoder[DelQuoteAction].widen,
       Decoder[PartAction].widen,
-      Decoder[JoinAction].widen
+      Decoder[JoinAction].widen,
+      Decoder[AddCounterAction].widen,
+      Decoder[IncCounterAction].widen,
+      Decoder[HelpAction].widen
     ).reduceLeft(_ or _)
   implicit val logstageCodec: LogstageCodec[Action] = LogstageCirceCodec.derived[Action]
 }
@@ -112,7 +126,8 @@ trait BotCommand {
   val name: String
   val permission: Permission
   val parser: Parser[A]
-  override def toString: String = s"Command(name: $name, perm: $permission)"
+  override def toString: String = s"$name ${parser.describe} (permissions: $permission)"
+  def help: String = toString // TODO: maybe we change this around later, but its fine for now.
   def execute(channelName: ChannelName, chatUser: ChatUser, a: A): Action
   def apply(channelName: ChannelName, chatUser: ChatUser, args: String): Either[String, Action] =
     parser(args.trim).toEither.map(a => execute(channelName, chatUser, a))
@@ -126,10 +141,14 @@ object CommandInterpreter {
       case PrintStreamsAction                          => printStreams
       case GetExactQuoteAction(channelName, qid)       => getExactQuote(channelName, qid)
       case GetRandomQuoteAction(channelName)           => getRandomQuote(channelName)
+      case SearchQuotesAction(channelName, like)       => search(channelName, like)
       case AddQuoteAction(channelName, chatUser, text) => addQuote(channelName, chatUser, text)
       case DelQuoteAction(channelName, qid)            => deleteQuote(channelName, qid)
       case PartAction(channelName)                     => part(channelName)
       case JoinAction(newChannelName: String)          => join(newChannelName)
+      case AddCounterAction(channel, user, counter)    => addCounter(channel, user, counter)
+      case IncCounterAction(channel, counter)          => incCounter(channel, counter)
+      case HelpAction(commandName)                     => help(commandName, Commands.commands)
     }
 
   def printStreams: Stream[ConnectionIO, Response] =
@@ -141,8 +160,30 @@ object CommandInterpreter {
   def getRandomQuote(channelName: ChannelName): Stream[ConnectionIO, Response] =
     Stream.eval(withQuoteOr(db.getRandomQuoteForStream(channelName.name), "I couldn't find any quotes, man."))
 
+  // TODO: this take(1) here is a little sus.
+  // What do we really want to return here? Maybe we just want to return a link...
+  // or a random one? Who knows.
+  def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
+    db.searchQuotesForStream(channelName.name, like).map(q => RespondWith(q.display)).take(1)
+
   def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
     val f = db.insertQuote(text, chatUser.username.name, channelName.name).map(q => RespondWith(q.display))
+    val msg = err(s"I couldn't add quote for stream ${channelName.name}")
+    Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
+  }
+
+  def addCounter(channelName: ChannelName, chatUser: ChatUser, counterName: String): Stream[ConnectionIO, Response] = {
+    val f = db.insertCounter(counterName, chatUser.username.name, channelName.name).map(c =>
+      RespondWith(s"Ok I added it. ${c.name}:${c.count}")
+    )
+    val msg = err(s"I couldn't add quote for stream ${channelName.name}")
+    Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
+  }
+
+  def incCounter(channelName: ChannelName, counterName: String): Stream[ConnectionIO, Response] = {
+    val f = db.incrementCounter(counterName, channelName.name).map(c =>
+      RespondWith(s"Ok I incremented it. ${c.name}:${c.count}")
+    )
     val msg = err(s"I couldn't add quote for stream ${channelName.name}")
     Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
   }
@@ -165,9 +206,17 @@ object CommandInterpreter {
     Stream
       .eval(for {
         b <- db.doesStreamExist(newChannelName)
-        z <- if (b) db.insertStream(newChannelName) else db.joinStream(newChannelName)
+        z <- if (b) db.joinStream(newChannelName) else db.insertStream(newChannelName)
       } yield z)
       .flatMap(_ => Stream(Join(newChannelName), RespondWith(s"Joining $newChannelName!")))
+
+  def help(commandName: String, knownCommands: Map[String, BotCommand]): Stream[ConnectionIO, Response] = {
+    val res = knownCommands.get(commandName) match {
+      case None => s"Unknown command: $commandName"
+      case Some(c) => c.toString
+    }
+    Stream.emit(RespondWith(res))
+  }
 
   // returns true if the given user is allowed to run the command on the given channel
   // false if not.
@@ -237,6 +286,15 @@ case object Commands {
       mn.fold[Action](GetRandomQuoteAction(channelName))(n => GetExactQuoteAction(channelName, n))
   }
 
+  val searchQuotesCommand: BotCommand = new BotCommand {
+    override type A = String
+    val name: String = "!search"
+    val permission: Permission = Anyone
+    val parser: Parser[String] = slurp
+    def execute(channelName: ChannelName, chatUser: ChatUser, like: String): Action =
+      SearchQuotesAction(channelName, like)
+  }
+
   val addQuoteCommand: BotCommand = new BotCommand {
     override type A = String
     val name: String = "!addQuote"
@@ -271,14 +329,46 @@ case object Commands {
       JoinAction(newChannelName)
   }
 
+  val addCounterCommand: BotCommand = new BotCommand {
+    override type A = String
+    val name: String = "!addCounter"
+    val permission: Permission = Anyone
+    val parser: Parser[String] = anyStringAs("counter name")
+    def execute(channelName: ChannelName, chatUser: ChatUser, name: String): Action =
+      AddCounterAction(channelName, chatUser, name)
+  }
+
+  val incCounterCommand: BotCommand = new BotCommand {
+    override type A = String
+    val name: String = "!inc"
+    val permission: Permission = Anyone
+    val parser: Parser[String] = anyStringAs("counter name")
+    def execute(channelName: ChannelName, _cu: ChatUser, name: String): Action =
+      IncCounterAction(channelName, name)
+  }
+
+  val helpCommand: BotCommand = new BotCommand {
+    override type A = String
+    val name: String = "!help"
+    val permission: Permission = Anyone
+    val parser: Parser[String] = anyStringAs("command_name")
+    def execute(channelName: ChannelName, _cu: ChatUser, command: String): Action =
+      HelpAction(command)
+  }
+
   val commands: Map[String, BotCommand] = List(
     joinCommand,
     partCommand,
     getQuoteCommand,
+    searchQuotesCommand,
     addQuoteCommand,
     delQuoteCommand,
-    printStreamsCommand
+    printStreamsCommand,
+    addCounterCommand,
+    incCounterCommand,
+    helpCommand
   ).map(c => (c.name, c)).toMap
+
 }
 
 case class CommandRunner(commands: Map[String, BotCommand]) {

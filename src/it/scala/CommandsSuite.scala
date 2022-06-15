@@ -20,6 +20,10 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(f("!quote 0"), GetExactQuoteAction(channel, 0))
     assertEquals(f("!quote"), GetRandomQuoteAction(channel))
     assertEquals(f("!printStreams"), PrintStreamsAction)
+    assertEquals(f("!addCounter x"), AddCounterAction(channel, user, "x"))
+    assertEquals(f("!inc x"), IncCounterAction(channel, "x"))
+    assertEquals(f("!help !quote"), HelpAction("!quote"))
+    assertEquals(f("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
   }
 
   test("join command joins") {
@@ -55,6 +59,16 @@ class CommandsSuite extends PostgresContainerSuite {
     }
   }
 
+  test("search command gets quote") {
+    withDb {
+      for {
+        _ <- CommandInterpreter.addQuote(channel, user, "hello").compile.toList
+        response1 <- CommandInterpreter.interpret(SearchQuotesAction(channel, "%hell%")).compile.toList
+        response2 <- CommandInterpreter.interpret(SearchQuotesAction(channel, "%zzz%")).compile.toList
+      } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) && assertEquals(response2, Nil)
+    }
+  }
+
   test("delete quote command deletes quote") {
     withDb {
       for {
@@ -75,4 +89,28 @@ class CommandsSuite extends PostgresContainerSuite {
       } yield assertEquals(response, List(RespondWith(expectedText)))
     }
   }
+
+  test("add counter command adds counter") {
+    withDb {
+      for {
+        response0 <- CommandInterpreter.interpret(AddCounterAction(channel, user, "my-counter")).compile.toList
+        response1 <- CommandInterpreter.interpret(IncCounterAction(channel, "my-counter")).compile.toList
+        response2 <- CommandInterpreter.interpret(IncCounterAction(channel, "my-counter")).compile.toList
+        responses = response0 ++ response1 ++ response2
+      } yield assertEquals(
+        responses,
+        List(
+          RespondWith("Ok I added it. my-counter:0"),
+          RespondWith("Ok I incremented it. my-counter:1"),
+          RespondWith("Ok I incremented it. my-counter:2")
+        )
+      )
+    }
+  }
+
+  test("help command helps")(
+    for {
+      response <- CommandInterpreter.interpret(HelpAction("!quote")).compile.toList
+    } yield assertEquals(response, List(RespondWith("!quote optional(int) (permissions: Anyone)")))
+  )
 }

@@ -28,5 +28,6 @@ object Logging {
 }
 
 object LoggingImplicits {
-  implicit val productionLogger: LogIOStrict[IO] = Logging.impl[IO](IzStrictLogger(Trace, List(ConsoleSink.text(colored = false))))
+  implicit val productionLogger: LogIOStrict[IO] =
+    Logging.impl[IO](IzStrictLogger(Trace, List(ConsoleSink.text(colored = false))))
 }
