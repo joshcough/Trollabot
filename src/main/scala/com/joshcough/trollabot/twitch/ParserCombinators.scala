@@ -27,7 +27,7 @@ trait ParserCombinators extends ScalaEnrichment {
 
   case class ~[+A, +B](a: A, b: B) { override def toString = s"($a ~ $b)" }
 
-  trait ParseResult[+T] {
+  sealed trait ParseResult[+T] {
     def get: T
     def fold[A](failF: String => A)(sucF: (T, List[String]) => A): A
     def toEither: Either[String, T]

@@ -1,33 +1,73 @@
 import cats.effect.IO
-import com.joshcough.trollabot.web.{Quotes, Routes}
+import cats.implicits._
+import com.joshcough.trollabot.web.{Counters, Quotes, Routes}
 import doobie.Transactor
 import doobie.implicits._
-import org.http4s._
+import io.circe.Decoder
+import io.circe.parser.decode
+import org.http4s.{EntityDecoder, Request}
 import org.http4s.implicits._
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.client.Client
+import org.http4s.client.dsl.io._
+import org.http4s.Method._
 
 class TrollabotWebSuite extends PostgresContainerSuite {
 
-  test("Quote returns status code 200") {
-    withXa { xa =>
-      insertDautQuotes.transact(xa) *>
-      assertIO(retQuote(xa).map(_.status), Status.Ok)
+  val q2: AssertableQuote = AssertableQuote(Some(2), 1, "come to my healing spot man!", 1, "jc", deleted = false, None)
+  val q5: AssertableQuote = AssertableQuote(Some(5), 4, "close us man!", 1, "jc", deleted = false, None)
+
+  val c1: AssertableCounter = AssertableCounter(Some(1), "housed", 2, 1, "jc")
+  val c2: AssertableCounter = AssertableCounter(Some(2), "brutal", 0, 1, "jc")
+
+  test("/quote returns a quote") {
+    withData { xa =>
+      assertIO(QuotesRequestRunner.getQuote(xa, "daut", 1), Option(q2))
     }
   }
 
-  test("Quote returns a quote") {
-    withXa { xa =>
-      for {
-        _ <- insertDautQuotes.transact(xa)
-        expected = "{\"id\":2,\"qid\":1,\"text\":\"come to my healing spot man!\",\"userId\":\"jc\",\"channel\":1}"
-        _ <- assertIO(retQuote(xa).flatMap(_.as[String]), expected)
-      } yield ()
+  test("can search for quotes") {
+    withData { xa =>
+      assertIO(QuotesRequestRunner.search(xa, "daut", "man"), List(q2, q5))
     }
   }
 
-  // TODO: take stream, qid as arguments
-  private def retQuote(xa: Transactor[IO]): IO[Response[IO]] = {
-    val getHW = Request[IO](Method.GET, uri"/quote/daut/1")
-    val quotes = Quotes.impl[IO](xa)
-    Routes.quoteRoutes(quotes).orNotFound(getHW)
+  test("can get counters") {
+    withData { xa =>
+      assertIO(CountersRequestRunner.getCounters(xa, "daut"), List(c1, c2))
+    }
   }
+
+  def withData[A](f: Transactor[IO] => IO[A]): IO[A] =
+    withXa { xa => insertDautQuotes.transact(xa) *> insertDautCounters.transact(xa) *> f(xa) }
+}
+
+object QuotesRequestRunner {
+  def apply(xa: Transactor[IO]) = RequestRunner(Routes.quoteRoutes(Quotes.impl[IO](xa)))
+
+  def getQuote(xa: Transactor[IO], streamName: String, qid: Int): IO[Option[AssertableQuote]] =
+    apply(xa).runRequest[Option[AssertableQuote]](GET(uri"/quotes" / streamName / qid))
+
+  def search(xa: Transactor[IO], streamName: String, like: String): IO[List[AssertableQuote]] =
+    apply(xa).runRequestStream[AssertableQuote](GET(uri"/quotes" / streamName / s"%$like%"))
+}
+
+object CountersRequestRunner {
+  def apply(xa: Transactor[IO]) = RequestRunner(Routes.counterRoutes(Counters.impl[IO](xa)))
+
+  def getCounters(xa: Transactor[IO], streamName: String): IO[List[AssertableCounter]] =
+    apply(xa).runRequestStream[AssertableCounter](GET(uri"/counters" / streamName))
+}
+
+case class RequestRunner(routes: org.http4s.HttpRoutes[IO]) {
+  val client = Client.fromHttpApp(routes.orNotFound)
+
+  def runRequest[A](req: Request[IO])(implicit decoder: EntityDecoder[IO, A]): IO[A] =
+    client.expect[A](req)
+
+  def runRequestStream[A](req: Request[IO])(implicit decoder: Decoder[A]): IO[List[A]] =
+    client.stream(req)
+      .flatMap(x => x.bodyText.map(decode[A](_)))
+      .compile.toList.map(_.sequence)
+      .map(x => x.fold(e => throw e, a => a))
 }

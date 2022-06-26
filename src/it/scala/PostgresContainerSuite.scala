@@ -23,6 +23,8 @@ object QuotesData {
     "You are proper Jordan Tati",
     "close us man!"
   )
+
+  val dautCounters: List[String] = List("housed", "brutal")
 }
 
 trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite with TestContainersForAll {
@@ -33,6 +35,13 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
 
   def insertDautQuotes: ConnectionIO[List[Unit]] =
     dautQuotes.map(q => insertAndGetQuote(q, "jc", daut)).sequence
+
+  def insertDautCounters: ConnectionIO[Unit] =
+    for {
+      _ <- dautCounters.map(c => TrollabotDb.insertCounter(c, "jc", "daut")).sequence
+      _ <- TrollabotDb.incrementCounter("housed", "daut")
+      _ <- TrollabotDb.incrementCounter("housed", "daut")
+    } yield ()
 
   override def startContainers(): Containers = {
     val myImage = DockerImageName.parse("postgres:12-alpine").

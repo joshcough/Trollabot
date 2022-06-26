@@ -8,6 +8,7 @@ import doobie.util.transactor.Transactor
 trait Quotes[F[_]] {
   def getQuote(channelName: String, qid: Int): F[Option[Quote]]
   def getQuotes(channelName: String): fs2.Stream[F, Quote]
+  def searchQuotes(channelName: String, like: String): fs2.Stream[F, Quote]
 }
 
 object Quotes {
@@ -20,5 +21,8 @@ object Quotes {
 
       override def getQuotes(channelName: String): fs2.Stream[F, Quote] =
         TrollabotDb.getAllQuotesForStream(channelName).transact(xa)
+
+      override def searchQuotes(channelName: String, like: String): fs2.Stream[F, Quote] =
+        TrollabotDb.searchQuotesForStream(channelName, like).transact(xa)
     }
 }

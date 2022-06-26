@@ -13,7 +13,10 @@ lazy val root = (project in file("."))
     buildInfoKeys ++= {
       val t = System.currentTimeMillis
       Seq[BuildInfoKey](
-        name, version, scalaVersion, sbtVersion,
+        name,
+        version,
+        scalaVersion,
+        sbtVersion,
         BuildInfoKey.action("buildTime") { t },
         "commit" -> git.gitHeadCommit.value.fold("build_time_" + t.toString)(_.take(7))
       )

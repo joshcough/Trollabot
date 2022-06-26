@@ -24,7 +24,8 @@ object WebServer {
     val httpApp = (
       Routes.healthRoutes[F](HealthCheck.impl[F]) <+>
         Routes.quoteRoutes[F](Quotes.impl[F](xa)) <+>
-        Routes.quoteRoutes[F](Quotes.impl[F](xa))
+        Routes.inspectionRoutes[F](Inspections.impl[F](xa)) <+>
+        Routes.counterRoutes[F](Counters.impl[F](xa))
     ).orNotFound
 
     Stream.resource(
