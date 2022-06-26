@@ -1,6 +1,6 @@
 package com.joshcough.trollabot.twitch
 
-import com.joshcough.trollabot.{Quote, TrollabotDb}
+import com.joshcough.trollabot.{BuildInfo, Quote, TrollabotDb}
 import ParserCombinators._
 import cats.effect.MonadCancelThrow
 import cats.implicits._
@@ -89,6 +89,7 @@ case class JoinAction(newChannelName: String) extends Action
 case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: String) extends Action
 case class IncCounterAction(channelName: ChannelName, counterName: String) extends Action
 case class HelpAction(commandName: String) extends Action
+case object BuildInfoAction extends Action
 
 object Action {
   implicit val encodeResponse: Encoder[Action] = Encoder.instance {
@@ -103,6 +104,7 @@ object Action {
     case r @ AddCounterAction(_, _, _) => r.asJson
     case r @ IncCounterAction(_, _)    => r.asJson
     case r @ HelpAction(_)             => r.asJson
+    case _ @BuildInfoAction         => "BuildInfoAction".asJson
   }
   implicit val decodeResponse: Decoder[Action] =
     List[Decoder[Action]](
@@ -116,7 +118,8 @@ object Action {
       Decoder[JoinAction].widen,
       Decoder[AddCounterAction].widen,
       Decoder[IncCounterAction].widen,
-      Decoder[HelpAction].widen
+      Decoder[HelpAction].widen,
+      Decoder[BuildInfoAction.type].widen,
     ).reduceLeft(_ or _)
   implicit val logstageCodec: LogstageCodec[Action] = LogstageCirceCodec.derived[Action]
 }
@@ -149,6 +152,7 @@ object CommandInterpreter {
       case AddCounterAction(channel, user, counter)    => addCounter(channel, user, counter)
       case IncCounterAction(channel, counter)          => incCounter(channel, counter)
       case HelpAction(commandName)                     => help(commandName, Commands.commands)
+      case BuildInfoAction                             => buildInfo
     }
 
   def printStreams: Stream[ConnectionIO, Response] =
@@ -217,6 +221,8 @@ object CommandInterpreter {
     }
     Stream.emit(RespondWith(res))
   }
+
+  val buildInfo: Stream[ConnectionIO, Response] = Stream.emit(RespondWith(BuildInfo.toString))
 
   // returns true if the given user is allowed to run the command on the given channel
   // false if not.
@@ -356,6 +362,15 @@ case object Commands {
       HelpAction(command)
   }
 
+  val buildInfoCommand: BotCommand = new BotCommand {
+    override type A = Unit
+    val name: String = "!buildInfo"
+    val permission: Permission = God
+    val parser: Parser[Unit] = empty
+    def execute(_channelName: ChannelName, _cu: ChatUser, _u: Unit): Action = BuildInfoAction
+  }
+
+  // TODO: there has to be a version command! one that can show me when trollabot was deployed or whatever.
   val commands: Map[String, BotCommand] = List(
     joinCommand,
     partCommand,
@@ -366,7 +381,8 @@ case object Commands {
     printStreamsCommand,
     addCounterCommand,
     incCounterCommand,
-    helpCommand
+    helpCommand,
+    buildInfoCommand,
   ).map(c => (c.name, c)).toMap
 
 }
@@ -388,7 +404,7 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
   ): Stream[F, Response] =
     parseFully(msg) match {
       case Some((cmd, Right(action))) => CommandInterpreter.interpret(msg, cmd, action, xa, L)
-      case Some((_, Left(err)))       => Stream(RespondWith(err))
+      case Some((cmd, Left(_)))       => Stream(RespondWith(cmd.help))
       // no command for this chat message, so just do nothing.
       case None => Stream.empty
     }

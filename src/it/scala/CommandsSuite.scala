@@ -24,6 +24,7 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(f("!inc x"), IncCounterAction(channel, "x"))
     assertEquals(f("!help !quote"), HelpAction("!quote"))
     assertEquals(f("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
+    assertEquals(f("!buildInfo"), BuildInfoAction)
   }
 
   test("join command joins") {
