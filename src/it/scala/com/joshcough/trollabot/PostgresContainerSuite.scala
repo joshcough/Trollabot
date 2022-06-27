@@ -1,14 +1,17 @@
+package com.joshcough.trollabot
+
 import cats.effect.IO
 import cats.implicits._
-import doobie.implicits._
-import doobie.{ConnectionIO, Transactor}
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
-import com.joshcough.trollabot.{Stream, TrollabotDb}
-
-import java.sql.DriverManager
+import com.joshcough.trollabot.api.{CountersDb, QuotesDb, StreamsDb}
+import com.joshcough.trollabot.twitch.{ChannelName, ChatUser, ChatUserName}
+import doobie.implicits._
+import doobie.{ConnectionIO, Transactor}
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.testcontainers.utility.DockerImageName
+
+import java.sql.DriverManager
 
 object QuotesData {
   val daut: Stream = Stream(None, "daut", joined = false)
@@ -33,14 +36,17 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
 
   override type Containers = PostgreSQLContainer
 
+  val dautChannel: ChannelName = ChannelName("daut")
+  val jc: ChatUser = ChatUser(ChatUserName("jc"), isMod = false, subscriber = false, badges = Map())
+
   def insertDautQuotes: ConnectionIO[List[Unit]] =
     dautQuotes.map(q => insertAndGetQuote(q, "jc", daut)).sequence
 
   def insertDautCounters: ConnectionIO[Unit] =
     for {
-      _ <- dautCounters.map(c => TrollabotDb.insertCounter(c, "jc", "daut")).sequence
-      _ <- TrollabotDb.incrementCounter("housed", "daut")
-      _ <- TrollabotDb.incrementCounter("housed", "daut")
+      _ <- dautCounters.map(c => CountersDb.insertCounter(dautChannel, jc, c)).sequence
+      _ <- CountersDb.incrementCounter(dautChannel, "housed")
+      _ <- CountersDb.incrementCounter(dautChannel, "housed")
     } yield ()
 
   override def startContainers(): Containers = {
@@ -52,10 +58,10 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
   }
 
   def setupDB: ConnectionIO[Unit] = for {
-    _ <- TrollabotDb.createSchema
-    _ <- TrollabotDb.deleteAllQuotes
-    _ <- TrollabotDb.deleteAllStreams
-    _ <- streams.map(s => TrollabotDb.insertStream(s.name)).sequence
+    _ <- Queries.recreateSchema
+    _ <- Queries.deleteAllQuotes.run
+    _ <- Queries.deleteAllStreams.run
+    _ <- streams.map(s => StreamsDb.insertStream(s.name)).sequence
   } yield ()
 
   def withXa[A](f: Transactor[IO] => IO[A]): IO[A] =
@@ -70,8 +76,8 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
 
   def insertAndGetQuote(text: String, user: String, stream: Stream): ConnectionIO[Unit] = {
     val dbAction = for {
-      newQ <- TrollabotDb.insertQuote(text, user, stream.name)
-      newQO_ <- TrollabotDb.getQuoteByQid(stream.name, newQ.qid)
+      newQ <- QuotesDb.insertQuote(text, user, stream.name)
+      newQO_ <- QuotesDb.getQuote(stream.name, newQ.qid)
       newQ_ = newQO_.getOrElse(fail(
         s"couldn't retrieve inserted quote: text: $text, user: $user, stream: $stream"
       ))

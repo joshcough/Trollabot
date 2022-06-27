@@ -23,7 +23,7 @@ object App extends IOApp {
   def streamFromConfig(config: Configuration)(implicit L: LogIOStrict[IO]): Stream[IO, Message] = {
     val xa = config.xa[IO]
     val bot = Chatbot.streamFromDb(config.irc, xa)
-    val webapp = WebServer.stream(xa)
+    val webapp = WebServer.stream(api.Api(xa))
     logDebugS("=== Welcome to trollabot! ===") *> bot.concurrently(webapp)
   }
 
