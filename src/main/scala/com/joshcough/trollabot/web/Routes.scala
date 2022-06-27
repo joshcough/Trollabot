@@ -2,7 +2,8 @@ package com.joshcough.trollabot.web
 
 import cats.effect.Sync
 import cats.implicits._
-import org.http4s._
+import com.joshcough.trollabot.BuildInfo
+import org.http4s.{BuildInfo => _, _}
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.Http4sDsl
 
@@ -30,6 +31,7 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
+      case GET -> Root / "inspect" / "build_info"                    => Ok(BuildInfo())
       case GET -> Root / "inspect" / "streams" / "joined"            => Ok(I.getAllStreams)
       case GET -> Root / "inspect" / "streams"                       => Ok(I.getAllStreams)
       case GET -> Root / "inspect" / "quotes" / "count" / streamName => Ok(I.countQuotesInStream(streamName))

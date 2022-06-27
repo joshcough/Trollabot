@@ -222,7 +222,7 @@ object CommandInterpreter {
     Stream.emit(RespondWith(res))
   }
 
-  val buildInfo: Stream[ConnectionIO, Response] = Stream.emit(RespondWith(BuildInfo.toString))
+  val buildInfo: Stream[ConnectionIO, Response] = Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 
   // returns true if the given user is allowed to run the command on the given channel
   // false if not.
