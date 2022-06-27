@@ -81,45 +81,37 @@ case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stre
 
     def handleIncomingMessage(socket: Socket[F], m: String): Stream[F, IncomingMessage] =
       m.trim match {
-        case command if command.startsWith("PING") =>
-          sendMessage(socket, pong) *> Stream(IncomingMessage(command, List(pong)))
+        case command if command.startsWith("PING") => sendMessage(socket, pong) *> Stream()
         case _ @PRIVMSGRegex(badges, username, _, channel, message) =>
           val cm = createChatMessage(badges, username, channel, message)
           processChatMessage(cm).flatMap(om => sendMessage(socket, om).map(_ => IncomingMessage(m, List(om))))
-        case x =>
-          Stream.eval(L.debug(s"Didn't match anything at all for $m")) *>
-            Stream(IncomingMessage(x, Nil))
+        case x => Stream(IncomingMessage(x, Nil))
       }
 
     val loginStream: Stream[F, OutgoingMessage] = Stream(login(ircConfig): _*)
 
     withSocket { socket =>
       val outgoing: Stream[F, OutgoingMessage] = (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
-
       val incoming: Stream[F, IncomingMessage] = socket.reads.through(text.utf8.decode).flatMap { s =>
         for {
           _ <- Stream.eval(L.debug(s"handling incoming message: $s"))
           m <- handleIncomingMessage(socket, s)
         } yield m
       }
-
       outgoing ++ incoming.repeat
     }
   }
 
   def withSocket[A](f: TLSSocket[F] => Stream[F, A]): Stream[F, A] = {
-    // todo: if we use pureconfig, we can have real types in the config and then remove this code
-    val addr = (for {
-      h <- Host.fromString(ircConfig.server)
-    } yield SocketAddress(h, ircConfig.port))
-      .getOrElse(throw new RuntimeException("couldn't read server or port from config"))
-
-    import fs2.io.net.tls.TLSContext.Builder
+    val addr: SocketAddress[Host] = Host
+      .fromString(ircConfig.server)
+      .map(SocketAddress(_, ircConfig.port))
+      .getOrElse(throw new RuntimeException("couldn't read server from config"))
 
     for {
       _ <- Stream.eval(L.debug(s"Connecting to socket"))
       socket <- Stream.resource(Network[F].client(addr))
-      tlsContext <- Stream.eval(Builder.forAsync[F].system)
+      tlsContext <- Stream.eval(fs2.io.net.tls.TLSContext.Builder.forAsync[F].system)
       tlsSocket <- Stream.resource(tlsContext.client(socket))
       _ <- Stream.eval(L.debug(s"Connected to socket"))
       res <- f(tlsSocket)

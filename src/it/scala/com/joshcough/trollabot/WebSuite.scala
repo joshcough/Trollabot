@@ -1,18 +1,21 @@
+package com.joshcough.trollabot
+
 import cats.effect.IO
 import cats.implicits._
-import com.joshcough.trollabot.web.{Counters, Quotes, Routes}
+import com.joshcough.trollabot.api.{Counters, Quotes}
+import com.joshcough.trollabot.web.Routes
 import doobie.Transactor
 import doobie.implicits._
 import io.circe.Decoder
 import io.circe.parser.decode
-import org.http4s.{EntityDecoder, Request}
-import org.http4s.implicits._
+import org.http4s.Method._
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.client.Client
 import org.http4s.client.dsl.io._
-import org.http4s.Method._
+import org.http4s.implicits._
+import org.http4s.{EntityDecoder, Request}
 
-class TrollabotWebSuite extends PostgresContainerSuite {
+class WebSuite extends PostgresContainerSuite {
 
   val q2: AssertableQuote = AssertableQuote(Some(2), 1, "come to my healing spot man!", 1, "jc", deleted = false, None)
   val q5: AssertableQuote = AssertableQuote(Some(5), 4, "close us man!", 1, "jc", deleted = false, None)
@@ -43,7 +46,7 @@ class TrollabotWebSuite extends PostgresContainerSuite {
 }
 
 object QuotesRequestRunner {
-  def apply(xa: Transactor[IO]) = RequestRunner(Routes.quoteRoutes(Quotes.impl[IO](xa)))
+  def apply(xa: Transactor[IO]): RequestRunner = RequestRunner(Routes.quoteRoutes(Quotes.impl[IO](xa)))
 
   def getQuote(xa: Transactor[IO], streamName: String, qid: Int): IO[Option[AssertableQuote]] =
     apply(xa).runRequest[Option[AssertableQuote]](GET(uri"/quotes" / streamName / qid))
@@ -53,14 +56,14 @@ object QuotesRequestRunner {
 }
 
 object CountersRequestRunner {
-  def apply(xa: Transactor[IO]) = RequestRunner(Routes.counterRoutes(Counters.impl[IO](xa)))
+  def apply(xa: Transactor[IO]): RequestRunner = RequestRunner(Routes.counterRoutes(Counters.impl[IO](xa)))
 
   def getCounters(xa: Transactor[IO], streamName: String): IO[List[AssertableCounter]] =
     apply(xa).runRequestStream[AssertableCounter](GET(uri"/counters" / streamName))
 }
 
 case class RequestRunner(routes: org.http4s.HttpRoutes[IO]) {
-  val client = Client.fromHttpApp(routes.orNotFound)
+  val client: Client[IO] = Client.fromHttpApp(routes.orNotFound)
 
   def runRequest[A](req: Request[IO])(implicit decoder: EntityDecoder[IO, A]): IO[A] =
     client.expect[A](req)

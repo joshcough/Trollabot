@@ -3,6 +3,7 @@ package com.joshcough.trollabot.web
 import cats.effect.Sync
 import cats.implicits._
 import com.joshcough.trollabot.BuildInfo
+import com.joshcough.trollabot.api.{Api, Counters, HealthCheck, Quotes, Streams}
 import org.http4s.{BuildInfo => _, _}
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.Http4sDsl
@@ -19,23 +20,23 @@ object Routes {
     }
   }
 
-  def counterRoutes[F[_]: Sync](Q: Counters[F]): HttpRoutes[F] = {
+  def counterRoutes[F[_]: Sync](C: Counters[F]): HttpRoutes[F] = {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "counters" / stream => Ok(Q.getCounters(stream))
+      case GET -> Root / "counters" / stream => Ok(C.getCounters(stream))
     }
   }
 
-  def inspectionRoutes[F[_]: Sync](I: Inspections[F]): HttpRoutes[F] = {
+  def inspectionRoutes[F[_]: Sync](Q: Quotes[F], S: Streams[F]): HttpRoutes[F] = {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
       case GET -> Root / "inspect" / "build_info"                    => Ok(BuildInfo())
-      case GET -> Root / "inspect" / "streams" / "joined"            => Ok(I.getAllStreams)
-      case GET -> Root / "inspect" / "streams"                       => Ok(I.getAllStreams)
-      case GET -> Root / "inspect" / "quotes" / "count" / streamName => Ok(I.countQuotesInStream(streamName))
-      case GET -> Root / "inspect" / "quotes" / "count"              => Ok(I.countQuotes)
+      case GET -> Root / "inspect" / "streams" / "joined"            => Ok(S.getJoinedStreams)
+      case GET -> Root / "inspect" / "streams"                       => Ok(S.getAllStreams)
+      case GET -> Root / "inspect" / "quotes" / "count" / streamName => Ok(Q.countQuotesInStream(streamName))
+      case GET -> Root / "inspect" / "quotes" / "count"              => Ok(Q.countQuotes)
     }
   }
 
@@ -46,6 +47,12 @@ object Routes {
       case GET -> Root / "health" => H.health *> Ok()
     }
   }
+
+  def apply[F[_]: Sync](api: Api[F]) =
+    healthRoutes[F](api.healthCheck) <+>
+      quoteRoutes[F](api.quotes) <+>
+      inspectionRoutes[F](api.quotes, api.streams) <+>
+      counterRoutes[F](api.counters)
 }
 
 // Could potentially be useful later:

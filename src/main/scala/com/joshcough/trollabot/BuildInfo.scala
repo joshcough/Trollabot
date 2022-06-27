@@ -5,12 +5,14 @@ import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import java.time.Instant
 
-case class BuildInfo(name: String,
-                     version: String,
-                     scalaVersion: String,
-                     sbtVersion: String,
-                     buildTime: Instant,
-                     commit: Option[String])
+case class BuildInfo(
+    name: String,
+    version: String,
+    scalaVersion: String,
+    sbtVersion: String,
+    buildTime: Instant,
+    commit: Option[String]
+)
 
 object BuildInfo {
   implicit val buildInfoDecoder: Decoder[BuildInfo] = deriveDecoder[BuildInfo]

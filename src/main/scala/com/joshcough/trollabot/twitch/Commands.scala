@@ -1,13 +1,14 @@
 package com.joshcough.trollabot.twitch
 
-import com.joshcough.trollabot.{BuildInfo, Quote, TrollabotDb}
+import com.joshcough.trollabot.{BuildInfo, Quote}
 import ParserCombinators._
 import cats.effect.MonadCancelThrow
 import cats.implicits._
+import com.joshcough.trollabot.api.Api
 import doobie.ConnectionIO
-import doobie.implicits._
+import doobie.implicits.toDoobieStreamOps
 import doobie.util.transactor.Transactor
-import fs2.Stream
+import fs2.{Pure, Stream}
 import io.circe.{Codec, Decoder, Encoder}
 import io.circe.derivation
 import io.circe.generic.auto._
@@ -28,14 +29,15 @@ object Response {
   implicit val encodeResponse: Encoder[Response] = Encoder.instance {
     case r @ RespondWith(_) => r.asJson
     case r @ Join(_)        => r.asJson
-    // TODO: is this correct, or BS?
-    case _ @Part => "Part".asJson
+    case _ @Part            => "Part".asJson // TODO: is this correct, or BS?
+    case r @ LogErr(_)      => r.asJson
   }
   implicit val decodeResponse: Decoder[Response] =
     List[Decoder[Response]](
       Decoder[RespondWith].widen,
       Decoder[Join].widen,
-      Decoder[Part.type].widen
+      Decoder[Part.type].widen,
+      Decoder[LogErr].widen
     ).reduceLeft(_ or _)
   implicit val logstageCodec: LogstageCodec[Response] = LogstageCirceCodec.derived[Response]
 }
@@ -45,6 +47,11 @@ case class Join(newChannel: String) extends Response
 case object Part extends Response {
   implicit val circeCodec: Codec[Part.type] = derivation.deriveCodec[Part.type]
   implicit val logstageCodec: LogstageCodec[Part.type] = LogstageCirceCodec.derived[Part.type]
+}
+case class LogErr(err: String) extends Response
+
+object LogErr {
+  def apply(t: Throwable): LogErr = LogErr(t.getMessage + "\n" + t.getStackTrace.mkString(","))
 }
 
 object RespondWith {
@@ -104,7 +111,7 @@ object Action {
     case r @ AddCounterAction(_, _, _) => r.asJson
     case r @ IncCounterAction(_, _)    => r.asJson
     case r @ HelpAction(_)             => r.asJson
-    case _ @BuildInfoAction         => "BuildInfoAction".asJson
+    case _ @BuildInfoAction            => "BuildInfoAction".asJson
   }
   implicit val decodeResponse: Decoder[Action] =
     List[Decoder[Action]](
@@ -119,7 +126,7 @@ object Action {
       Decoder[AddCounterAction].widen,
       Decoder[IncCounterAction].widen,
       Decoder[HelpAction].widen,
-      Decoder[BuildInfoAction.type].widen,
+      Decoder[BuildInfoAction.type].widen
     ).reduceLeft(_ or _)
   implicit val logstageCodec: LogstageCodec[Action] = LogstageCirceCodec.derived[Action]
 }
@@ -136,8 +143,8 @@ trait BotCommand {
     parser(args.trim).toEither.map(a => execute(channelName, chatUser, a))
 }
 
-object CommandInterpreter {
-  val db = TrollabotDb
+case class CommandInterpreter(api: Api[ConnectionIO]) {
+  import api._
 
   def interpret(a: Action): Stream[ConnectionIO, Response] =
     a match {
@@ -156,71 +163,69 @@ object CommandInterpreter {
     }
 
   def printStreams: Stream[ConnectionIO, Response] =
-    db.getAllStreams.map(_.toString).reduce((l, r) => s"$l, $r").map(RespondWith(_))
+    streams.getStreams.map(_.toString).reduce((l, r) => s"$l, $r").map(RespondWith(_))
 
   def getExactQuote(channelName: ChannelName, qid: Int): Stream[ConnectionIO, Response] =
-    Stream.eval(withQuoteOr(db.getQuoteByQid(channelName.name, qid), s"I couldn't find quote #$qid, man."))
+    withQuoteOr(quotes.getQuote(channelName.name, qid), s"I couldn't find quote #$qid, man.")
 
   def getRandomQuote(channelName: ChannelName): Stream[ConnectionIO, Response] =
-    Stream.eval(withQuoteOr(db.getRandomQuoteForStream(channelName.name), "I couldn't find any quotes, man."))
+    withQuoteOr(quotes.getRandomQuote(channelName.name), "I couldn't find any quotes, man.")
 
   // TODO: this take(1) here is a little sus.
   // What do we really want to return here? Maybe we just want to return a link...
   // or a random one? Who knows.
   def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
-    db.searchQuotesForStream(channelName.name, like).map(q => RespondWith(q.display)).take(1)
+    quotes.searchQuotes(channelName.name, like).map(q => RespondWith(q.display)).take(1)
 
-  def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
-    val f = db.insertQuote(text, chatUser.username.name, channelName.name).map(q => RespondWith(q.display))
-    val msg = err(s"I couldn't add quote for stream ${channelName.name}")
-    Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
-  }
-
-  def addCounter(channelName: ChannelName, chatUser: ChatUser, counterName: String): Stream[ConnectionIO, Response] = {
-    val f = db.insertCounter(counterName, chatUser.username.name, channelName.name).map(c =>
-      RespondWith(s"Ok I added it. ${c.name}:${c.count}")
-    )
-    val msg = err(s"I couldn't add quote for stream ${channelName.name}")
-    Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
-  }
-
-  def incCounter(channelName: ChannelName, counterName: String): Stream[ConnectionIO, Response] = {
-    val f = db.incrementCounter(counterName, channelName.name).map(c =>
-      RespondWith(s"Ok I incremented it. ${c.name}:${c.count}")
-    )
-    val msg = err(s"I couldn't add quote for stream ${channelName.name}")
-    Stream.eval(f).handleErrorWith(_ => Stream.emit(RespondWith(msg)))
-  }
+  def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] =
+    Stream
+      .eval(quotes.insertQuote(text, chatUser.username.name, channelName.name).map(q => RespondWith(q.display)))
+      .handleErrorWith { e => errHandler(e, s"I couldn't add quote for stream ${channelName.name}") }
 
   // TODO: maybe we should mark the quote deleted instead of deleting it
   // and then we could take the user who deleted it too.
   // we could add two new columns to quote: deletedAt and deletedBy
   def deleteQuote(channelName: ChannelName, n: Int): Stream[ConnectionIO, Response] =
-    Stream.eval(db.deleteQuote(channelName.name, n).map {
-      case 1 => RespondWith("Ok I deleted it.")
-      case _ => RespondWith(err(s"I couldn't delete quote $n for channel ${channelName.name}"))
+    Stream.eval(quotes.deleteQuote(channelName.name, n).map {
+      case true  => RespondWith("Ok I deleted it.")
+      case false => RespondWith(err(s"I couldn't delete quote $n for channel ${channelName.name}"))
     })
 
   def part(channelName: ChannelName): Stream[ConnectionIO, Response] =
     Stream
-      .eval(db.partStream(channelName.name))
+      .eval(streams.markParted(channelName.name))
       .flatMap(_ => Stream(RespondWith("Goodbye cruel world!"), Part))
 
   def join(newChannelName: String): Stream[ConnectionIO, Response] =
     Stream
-      .eval(for {
-        b <- db.doesStreamExist(newChannelName)
-        z <- if (b) db.joinStream(newChannelName) else db.insertStream(newChannelName)
-      } yield z)
+      .eval(streams.join(newChannelName))
       .flatMap(_ => Stream(Join(newChannelName), RespondWith(s"Joining $newChannelName!")))
 
-  def help(commandName: String, knownCommands: Map[String, BotCommand]): Stream[ConnectionIO, Response] = {
-    val res = knownCommands.get(commandName) match {
-      case None => s"Unknown command: $commandName"
+  def addCounter(channelName: ChannelName, chatUser: ChatUser, counterName: String): Stream[ConnectionIO, Response] =
+    Stream
+      .eval(
+        counters
+          .insertCounter(channelName, chatUser, counterName)
+          .map(c => RespondWith(s"Ok I added it. ${c.name}:${c.count}"))
+      )
+      .handleErrorWith { e => errHandler(e, s"I couldn't add counter for $counterName stream ${channelName.name}") }
+
+  def incCounter(channelName: ChannelName, counterName: String): Stream[ConnectionIO, Response] =
+    Stream
+      .eval(
+        counters
+          .incrementCounter(channelName, counterName)
+          .map(c => RespondWith(s"Ok I incremented it. ${c.name}:${c.count}"))
+      )
+      .handleErrorWith { e =>
+        errHandler(e, s"I couldn't increment counter for $counterName stream ${channelName.name}")
+      }
+
+  def help(commandName: String, knownCommands: Map[String, BotCommand]): Stream[ConnectionIO, Response] =
+    Stream.emit(RespondWith(knownCommands.get(commandName) match {
+      case None    => s"Unknown command: $commandName"
       case Some(c) => c.toString
-    }
-    Stream.emit(RespondWith(res))
-  }
+    }))
 
   val buildInfo: Stream[ConnectionIO, Response] = Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 
@@ -229,17 +234,26 @@ object CommandInterpreter {
   def checkPermissions(cmd: BotCommand, chatUser: ChatUser, channelName: ChannelName): Boolean = {
     def isStreamer = chatUser.username.name.toLowerCase == channelName.name.toLowerCase
     def isGod: Boolean = chatUser.username.name.toLowerCase == "artofthetroll"
-    if (isGod) true
-    else
-      cmd.permission match {
-        case God if isGod                                     => true
-        case Owner if isStreamer || isGod                     => true
-        case ModOnly if chatUser.isMod || isStreamer || isGod => true
-        case Anyone                                           => true
-        case _                                                => false
-      }
+
+    cmd.permission match {
+      case God if isGod                                     => true
+      case Owner if isStreamer || isGod                     => true
+      case ModOnly if chatUser.isMod || isStreamer || isGod => true
+      case Anyone                                           => true
+      case _                                                => false
+    }
   }
 
+  private def withQuoteOr(foq: ConnectionIO[Option[Quote]], msg: String): Stream[ConnectionIO, Response] =
+    Stream.eval(foq.map(oq => RespondWith(oq.map(_.display).getOrElse(msg))))
+
+  private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
+
+  private def errHandler(e: Throwable, msg: String): Stream[Pure, Response] =
+    Stream.emits(List[Response](RespondWith(err(msg)), LogErr(e)))
+}
+
+object CommandInterpreter {
   // This class is just for logging.
   case class Executing(cmdName: String, user: ChatUser, channel: ChannelName, action: Action)
   object Executing {
@@ -251,13 +265,17 @@ object CommandInterpreter {
       msg: ChatMessage,
       cmd: BotCommand,
       action: Action,
+      api: Api[ConnectionIO],
       xa: Transactor[F],
       L: LogIOStrict[F]
   ): Stream[F, Response] = {
+    val interpreter: CommandInterpreter = CommandInterpreter(api)
+
     val e = Executing(cmd.name, msg.user, msg.channel, action)
-    if (CommandInterpreter.checkPermissions(cmd, msg.user, msg.channel)) for {
+
+    if (interpreter.checkPermissions(cmd, msg.user, msg.channel)) for {
       _ <- Stream.eval(L.debug(s"executing $e"))
-      res <- CommandInterpreter.interpret(action).transact(xa)
+      res <- interpreter.interpret(action).transact(xa)
       _ <- Stream.eval(L.debug(s"done executing $e"))
     } yield res
     // user doesnt' have permission to execute this command, so just do nothing.
@@ -265,10 +283,6 @@ object CommandInterpreter {
     else Stream.eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
   }
 
-  private def withQuoteOr(foq: ConnectionIO[Option[Quote]], msg: String): ConnectionIO[Response] =
-    foq.map(oq => RespondWith(oq.map(_.display).getOrElse(msg)))
-
-  private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
 }
 
 case class ChatMessage(user: ChatUser, channel: ChannelName, body: String)
@@ -370,7 +384,6 @@ case object Commands {
     def execute(_channelName: ChannelName, _cu: ChatUser, _u: Unit): Action = BuildInfoAction
   }
 
-  // TODO: there has to be a version command! one that can show me when trollabot was deployed or whatever.
   val commands: Map[String, BotCommand] = List(
     joinCommand,
     partCommand,
@@ -382,7 +395,7 @@ case object Commands {
     addCounterCommand,
     incCounterCommand,
     helpCommand,
-    buildInfoCommand,
+    buildInfoCommand
   ).map(c => (c.name, c)).toMap
 
 }
@@ -399,11 +412,11 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
       case (cmd, args) => (cmd, cmd.apply(msg.channel, msg.user, args))
     }
 
-  def processMessage[F[_]: MonadCancelThrow](msg: ChatMessage, xa: Transactor[F])(implicit
+  def processMessage[F[_]: MonadCancelThrow](msg: ChatMessage, api: Api[ConnectionIO], xa: Transactor[F])(implicit
       L: LogIOStrict[F]
   ): Stream[F, Response] =
     parseFully(msg) match {
-      case Some((cmd, Right(action))) => CommandInterpreter.interpret(msg, cmd, action, xa, L)
+      case Some((cmd, Right(action))) => CommandInterpreter.interpret(msg, cmd, action, api, xa, L)
       case Some((cmd, Left(_)))       => Stream(RespondWith(cmd.help))
       // no command for this chat message, so just do nothing.
       case None => Stream.empty
