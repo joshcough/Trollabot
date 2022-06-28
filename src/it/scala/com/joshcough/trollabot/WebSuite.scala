@@ -20,8 +20,8 @@ class WebSuite extends PostgresContainerSuite {
   val q2: AssertableQuote = AssertableQuote(Some(2), 1, "come to my healing spot man!", 1, "jc", deleted = false, None)
   val q5: AssertableQuote = AssertableQuote(Some(5), 4, "close us man!", 1, "jc", deleted = false, None)
 
-  val c1: AssertableCounter = AssertableCounter(Some(1), "housed", 2, 1, "jc")
-  val c2: AssertableCounter = AssertableCounter(Some(2), "brutal", 0, 1, "jc")
+  val c1: AssertableCounter = AssertableCounter(Some(1), CounterName("housed"), 2, 1, ChatUserName("jc"))
+  val c2: AssertableCounter = AssertableCounter(Some(2), CounterName("brutal"), 0, 1, ChatUserName("jc"))
 
   test("/quote returns a quote") {
     withData { xa =>

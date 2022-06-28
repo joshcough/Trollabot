@@ -1,6 +1,6 @@
 package com.joshcough.trollabot.twitch
 
-import com.joshcough.trollabot.{BuildInfo, Quote}
+import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser, CounterName, Quote}
 import ParserCombinators._
 import cats.effect.MonadCancelThrow
 import cats.implicits._
@@ -64,25 +64,6 @@ object Join {
   implicit val logstageCodec: LogstageCodec[Join] = LogstageCirceCodec.derived[Join]
 }
 
-case class ChatUserName(name: String)
-case class ChatUser(username: ChatUserName, isMod: Boolean, subscriber: Boolean, badges: Map[String, String])
-case class ChannelName(name: String)
-
-object ChatUserName {
-  implicit val circeCodec: Codec[ChatUserName] = derivation.deriveCodec[ChatUserName]
-  implicit val logstageCodec: LogstageCodec[ChatUserName] = LogstageCirceCodec.derived[ChatUserName]
-}
-
-object ChatUser {
-  implicit val circeCodec: Codec[ChatUser] = derivation.deriveCodec[ChatUser]
-  implicit val logstageCodec: LogstageCodec[ChatUser] = LogstageCirceCodec.derived[ChatUser]
-}
-
-object ChannelName {
-  implicit val circeCodec: Codec[ChannelName] = derivation.deriveCodec[ChannelName]
-  implicit val logstageCodec: LogstageCodec[ChannelName] = LogstageCirceCodec.derived[ChannelName]
-}
-
 sealed trait Action
 case object PrintStreamsAction extends Action
 case class GetExactQuoteAction(channelName: ChannelName, qid: Int) extends Action
@@ -93,8 +74,8 @@ case class DelQuoteAction(channelName: ChannelName, n: Int) extends Action
 case class PartAction(channelName: ChannelName) extends Action
 case class JoinAction(newChannelName: String) extends Action
 // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
-case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: String) extends Action
-case class IncCounterAction(channelName: ChannelName, counterName: String) extends Action
+case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName) extends Action
+case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action
 case class HelpAction(commandName: String) extends Action
 case object BuildInfoAction extends Action
 
@@ -180,7 +161,7 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
     val q = quotes.insertQuote(text, chatUser.username.name, channelName.name).map {
       case Right(q) => RespondWith(q.display)
-      case Left(q) => RespondWith(s"That quote already exists man! It's #${q.qid}")
+      case Left(q)  => RespondWith(s"That quote already exists man! It's #${q.qid}")
     }
     def onErr(e: Throwable): Stream[Pure, Response] =
       errHandler(e, s"I couldn't add quote for stream ${channelName.name}")
@@ -206,24 +187,30 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
       .eval(streams.join(newChannelName))
       .flatMap(_ => Stream(Join(newChannelName), RespondWith(s"Joining $newChannelName!")))
 
-  def addCounter(channelName: ChannelName, chatUser: ChatUser, counterName: String): Stream[ConnectionIO, Response] =
+  def addCounter(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      counterName: CounterName
+  ): Stream[ConnectionIO, Response] =
     Stream
       .eval(
         counters
           .insertCounter(channelName, chatUser, counterName)
-          .map(c => RespondWith(s"Ok I added it. ${c.name}:${c.count}"))
+          .map(c => RespondWith(s"Ok I added it. ${c.name.name}:${c.count}"))
       )
-      .handleErrorWith { e => errHandler(e, s"I couldn't add counter for $counterName stream ${channelName.name}") }
+      .handleErrorWith { e =>
+        errHandler(e, s"I couldn't add counter for ${counterName.name} stream ${channelName.name}")
+      }
 
-  def incCounter(channelName: ChannelName, counterName: String): Stream[ConnectionIO, Response] =
+  def incCounter(channelName: ChannelName, counterName: CounterName): Stream[ConnectionIO, Response] =
     Stream
       .eval(
         counters
           .incrementCounter(channelName, counterName)
-          .map(c => RespondWith(s"Ok I incremented it. ${c.name}:${c.count}"))
+          .map(c => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}"))
       )
       .handleErrorWith { e =>
-        errHandler(e, s"I couldn't increment counter for $counterName stream ${channelName.name}")
+        errHandler(e, s"I couldn't increment counter for ${counterName.name} stream ${channelName.name}")
       }
 
   def help(commandName: String, knownCommands: Map[String, BotCommand]): Stream[ConnectionIO, Response] =
@@ -354,21 +341,23 @@ case object Commands {
       JoinAction(newChannelName)
   }
 
+  val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
+
   val addCounterCommand: BotCommand = new BotCommand {
-    override type A = String
+    override type A = CounterName
     val name: String = "!addCounter"
     val permission: Permission = Anyone
-    val parser: Parser[String] = anyStringAs("counter name")
-    def execute(channelName: ChannelName, chatUser: ChatUser, name: String): Action =
+    val parser: Parser[CounterName] = counterNameParser
+    def execute(channelName: ChannelName, chatUser: ChatUser, name: CounterName): Action =
       AddCounterAction(channelName, chatUser, name)
   }
 
   val incCounterCommand: BotCommand = new BotCommand {
-    override type A = String
+    override type A = CounterName
     val name: String = "!inc"
     val permission: Permission = Anyone
-    val parser: Parser[String] = anyStringAs("counter name")
-    def execute(channelName: ChannelName, _cu: ChatUser, name: String): Action =
+    val parser: Parser[CounterName] = counterNameParser
+    def execute(channelName: ChannelName, _cu: ChatUser, name: CounterName): Action =
       IncCounterAction(channelName, name)
   }
 

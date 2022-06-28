@@ -2,8 +2,10 @@ package com.joshcough.trollabot
 
 import cats.Show
 import io.circe.Decoder.Result
-import io.circe.{Decoder, Encoder, HCursor, Json}
+import io.circe.{Codec, Decoder, Encoder, HCursor, Json, derivation}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import logstage.LogstageCodec
+import logstage.circe.LogstageCirceCodec
 
 import java.sql.Timestamp
 
@@ -13,6 +15,25 @@ object TimestampInstances {
       override def apply(a: Timestamp): Json = Encoder.encodeLong.apply(a.getTime)
       override def apply(c: HCursor): Result[Timestamp] = Decoder.decodeLong.map(s => new Timestamp(s)).apply(c)
     }
+}
+
+case class ChatUserName(name: String)
+case class ChatUser(username: ChatUserName, isMod: Boolean, subscriber: Boolean, badges: Map[String, String])
+case class ChannelName(name: String)
+
+object ChatUserName {
+  implicit val circeCodec: Codec[ChatUserName] = derivation.deriveCodec[ChatUserName]
+  implicit val logstageCodec: LogstageCodec[ChatUserName] = LogstageCirceCodec.derived[ChatUserName]
+}
+
+object ChatUser {
+  implicit val circeCodec: Codec[ChatUser] = derivation.deriveCodec[ChatUser]
+  implicit val logstageCodec: LogstageCodec[ChatUser] = LogstageCirceCodec.derived[ChatUser]
+}
+
+object ChannelName {
+  implicit val circeCodec: Codec[ChannelName] = derivation.deriveCodec[ChannelName]
+  implicit val logstageCodec: LogstageCodec[ChannelName] = LogstageCirceCodec.derived[ChannelName]
 }
 
 case class Stream(id: Option[Int], name: String, joined: Boolean)
@@ -31,7 +52,21 @@ case class Quote(
   def display: String = s"Quote #$qid: $text"
 }
 
-case class Counter(id: Option[Int], name: String, count: Int, channel: Int, addedBy: String, addedAt: Timestamp)
+case class CounterName(name: String)
+
+object CounterName {
+  implicit val circeCodec: Codec[CounterName] = derivation.deriveCodec[CounterName]
+  implicit val logstageCodec: LogstageCodec[CounterName] = LogstageCirceCodec.derived[CounterName]
+}
+
+case class Counter(
+    id: Option[Int],
+    name: CounterName,
+    count: Int,
+    channel: Int,
+    addedBy: ChatUserName,
+    addedAt: Timestamp
+)
 
 import TimestampInstances._
 

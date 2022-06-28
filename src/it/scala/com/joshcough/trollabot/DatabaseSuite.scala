@@ -87,19 +87,19 @@ class DatabaseSuite extends PostgresContainerSuite {
   }
 
   test("Can create and increment counters") {
-    def c(id: Int, name: String, count: Int) = AssertableCounter(Some(id), name, count, 1, "jc")
-    def housed(count: Int) = c(1, "housed", count)
-    def brutal(count: Int) = c(2, "brutal", count)
+    def c(id: Int, name: CounterName, count: Int) = AssertableCounter(Some(id), name, count, 1, ChatUserName("jc"))
+    def housed(count: Int) = c(1, CounterName("housed"), count)
+    def brutal(count: Int) = c(2, CounterName("brutal"), count)
     withDb {
       for {
         // create a counter called "housed" and increment it twice
-        c0 <- CountersDb.insertCounter(dautChannel, jc, "housed").map(AssertableCounter(_))
-        c1 <- CountersDb.incrementCounter(dautChannel, "housed").map(AssertableCounter(_))
-        c2 <- CountersDb.incrementCounter(dautChannel, "housed").map(AssertableCounter(_))
+        c0 <- CountersDb.insertCounter(dautChannel, jc, CounterName("housed")).map(AssertableCounter(_))
+        c1 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(AssertableCounter(_))
+        c2 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(AssertableCounter(_))
 
         // create another counter called "brutal" and increment it once
-        _ <- CountersDb.insertCounter(dautChannel, jc, "brutal").map(AssertableCounter(_))
-        _ <- CountersDb.incrementCounter(dautChannel,"brutal").map(AssertableCounter(_))
+        _ <- CountersDb.insertCounter(dautChannel, jc, CounterName("brutal")).map(AssertableCounter(_))
+        _ <- CountersDb.incrementCounter(dautChannel,CounterName("brutal")).map(AssertableCounter(_))
 
         // get all the counters
         cs <- CountersDb.getCounters("daut").compile.toList.map(_.map(AssertableCounter(_)))
@@ -113,7 +113,7 @@ class DatabaseSuite extends PostgresContainerSuite {
 
 case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: Int,
                            addedBy: String,  deleted: Boolean, deletedBy: Option[String])
-case class AssertableCounter(id: Option[Int], name: String, count: Int, channel: Int, addedBy: String)
+case class AssertableCounter(id: Option[Int], name: CounterName, count: Int, channel: Int, addedBy: ChatUserName)
 
 object AssertableQuote {
   def apply(q: Quote): AssertableQuote =

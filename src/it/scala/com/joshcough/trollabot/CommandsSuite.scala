@@ -25,8 +25,8 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(f("!quote 0"), GetExactQuoteAction(channel, 0))
     assertEquals(f("!quote"), GetRandomQuoteAction(channel))
     assertEquals(f("!printStreams"), PrintStreamsAction)
-    assertEquals(f("!addCounter x"), AddCounterAction(channel, user, "x"))
-    assertEquals(f("!inc x"), IncCounterAction(channel, "x"))
+    assertEquals(f("!addCounter x"), AddCounterAction(channel, user, CounterName("x")))
+    assertEquals(f("!inc x"), IncCounterAction(channel, CounterName("x")))
     assertEquals(f("!help !quote"), HelpAction("!quote"))
     assertEquals(f("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
     assertEquals(f("!buildInfo"), BuildInfoAction)
@@ -113,9 +113,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("add counter command adds counter") {
     withInterpreter { interp =>
       for {
-        response0 <- interp.interpret(AddCounterAction(channel, user, "my-counter")).compile.toList
-        response1 <- interp.interpret(IncCounterAction(channel, "my-counter")).compile.toList
-        response2 <- interp.interpret(IncCounterAction(channel, "my-counter")).compile.toList
+        response0 <- interp.interpret(AddCounterAction(channel, user, CounterName("my-counter"))).compile.toList
+        response1 <- interp.interpret(IncCounterAction(channel, CounterName("my-counter"))).compile.toList
+        response2 <- interp.interpret(IncCounterAction(channel, CounterName("my-counter"))).compile.toList
         responses = response0 ++ response1 ++ response2
       } yield assertEquals(
         responses,

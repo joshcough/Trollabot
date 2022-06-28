@@ -5,7 +5,6 @@ import cats.implicits._
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
 import com.joshcough.trollabot.api.{CountersDb, QuotesDb, StreamsDb}
-import com.joshcough.trollabot.twitch.{ChannelName, ChatUser, ChatUserName}
 import doobie.implicits._
 import doobie.{ConnectionIO, Transactor}
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
@@ -29,7 +28,7 @@ object QuotesData {
     "close us man!"
   )
 
-  val dautCounters: List[String] = List("housed", "brutal")
+  val dautCounters: List[CounterName] = List("housed", "brutal").map(CounterName(_))
 }
 
 trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite with TestContainersForAll {
@@ -47,8 +46,8 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
   def insertDautCounters: ConnectionIO[Unit] =
     for {
       _ <- dautCounters.map(c => CountersDb.insertCounter(dautChannel, jc, c)).sequence
-      _ <- CountersDb.incrementCounter(dautChannel, "housed")
-      _ <- CountersDb.incrementCounter(dautChannel, "housed")
+      _ <- CountersDb.incrementCounter(dautChannel, CounterName("housed"))
+      _ <- CountersDb.incrementCounter(dautChannel, CounterName("housed"))
     } yield ()
 
   override def startContainers(): Containers = {

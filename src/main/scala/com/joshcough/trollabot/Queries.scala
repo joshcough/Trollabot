@@ -60,11 +60,11 @@ object Queries {
       where s.name = $streamName
       """
 
-  def countersJoinStreams(counterName: String, streamName: String): Fragment =
+  def countersJoinStreams(counterName: CounterName, streamName: String): Fragment =
     fr"""
       from counters c
       join streams s on s.id = c.channel
-      where s.name = $streamName and c.name = $counterName
+      where s.name = $streamName and c.name = ${counterName.name}
       """
 
   val getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
@@ -159,22 +159,22 @@ object Queries {
 
   val deleteAllStreams: Update0 = sql"delete from streams".update
 
-  def insertCounter(counterName: String, username: String, streamName: String): Query0[Counter] =
+  def insertCounter(counterName: CounterName, username: String, streamName: String): Query0[Counter] =
     sql"""insert into counters (name, current_count, channel, added_by)
-          select $counterName, 0, s.id, $username
+          select ${counterName.name}, 0, s.id, $username
           from streams s where s.name = $streamName
           returning *""".query[Counter]
 
-  def counterValue(counterName: String, streamName: String): Query0[Int] =
+  def counterValue(counterName: CounterName, streamName: String): Query0[Int] =
     (sql"select c.current_count" ++ countersJoinStreams(counterName, streamName)).query[Int]
 
   def selectAllCountersForStream(streamName: String): Query0[Counter] =
     sql"select c.* from counters c join streams s on s.id = c.channel where s.name = $streamName".query[Counter]
 
-  def incrementCounter(counterName: String, streamName: String): Query0[Counter] =
+  def incrementCounter(counterName: CounterName, streamName: String): Query0[Counter] =
     sql"""update counters c
           set current_count = current_count + 1
           from streams s
-          where c.channel = s.id and c.name = $counterName and s.name = $streamName
+          where c.channel = s.id and c.name = ${counterName.name} and s.name = $streamName
           returning *""".query[Counter]
 }

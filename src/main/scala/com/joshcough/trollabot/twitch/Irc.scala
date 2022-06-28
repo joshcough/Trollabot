@@ -4,12 +4,14 @@ import cats.Show
 import cats.effect.kernel.Async
 import cats.implicits._
 import com.comcast.ip4s._
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
 import fs2.io.net.tls.TLSSocket
 import fs2.{INothing, Pipe, Stream, text}
 import fs2.io.net.{Network, Socket}
 import io.circe.Encoder
 import io.circe.generic.semiauto._
 import logstage.strict.LogIOStrict
+
 import scala.util.matching.Regex
 
 case class IrcConfig(token: String, username: String, server: String, port: Port)
