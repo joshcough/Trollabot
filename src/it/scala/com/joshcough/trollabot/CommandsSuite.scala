@@ -13,12 +13,16 @@ class CommandsSuite extends PostgresContainerSuite {
 
   test("commands parse") {
     val commandRunner = CommandRunner(Commands.commands)
-    def f(msg: String): Action =
-      commandRunner.parseFully(ChatMessage(user, channel, msg)).map(_._2) match {
-        case Some(Right(a)) => a
-        case Some(Left(err)) => fail(err)
-        case None => fail(s"couldn't parse $msg")
+    def f(msg: String): Action = {
+      commandRunner.parseMessageAndFindCommand(ChatMessage(user, channel, msg)) match {
+        case None => fail(s"couldn't find command for message: $msg")
+        case Some((cmd, args)) => cmd.apply(channel, user, args) match {
+          case Left(err) => fail(s"couldn't parse message args: $msg, $err")
+          case Right(action) => action
+        }
       }
+    }
+
     assertEquals(f("!join daut"), JoinAction(ChannelName("daut")))
     assertEquals(f("!part"), PartAction(channel))
     assertEquals(f("!addQuote hi"), AddQuoteAction(channel, user, "hi"))
@@ -31,6 +35,11 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(f("!help !quote"), HelpAction("!quote"))
     assertEquals(f("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
     assertEquals(f("!buildInfo"), BuildInfoAction)
+    assertEquals(f("!score"), ScoreAction(channel, GetScore))
+    assertEquals(f("!score 2 3"), ScoreAction(channel, SetScore(2, 3)))
+    assertEquals(f("!score daut 4 viper 0"), ScoreAction(channel, SetAll("daut", "viper", 4, 0)))
+    assertEquals(f("!player artofthetroll"), SetPlayerAction(channel, "artofthetroll"))
+    assertEquals(f("!opponent artofthetroll"), SetOpponentAction(channel, "artofthetroll"))
   }
 
   def withInterpreter[A](f: CommandInterpreter => ConnectionIO[A]): IO[A] =
@@ -137,7 +146,24 @@ class CommandsSuite extends PostgresContainerSuite {
     withInterpreter { interp =>
       for {
         response <- interp.interpret(HelpAction("!quote")).compile.toList
-      } yield assertEquals(response, List(RespondWith("!quote optional(int) (permissions: Anyone)")))
+      } yield assertEquals(response, List(RespondWith("!quote optional(int)")))
+    }
+  )
+
+  test("can set score/player/opponent")(
+    withInterpreter { interp =>
+      for {
+        r0 <- interp.interpret(ScoreAction(channel, GetScore)).compile.toList
+        r1 <- interp.interpret(SetPlayerAction(channel, "daut")).compile.toList
+        r2 <- interp.interpret(SetOpponentAction(channel, "artofthetroll")).compile.toList
+        r3 <- interp.interpret(ScoreAction(channel, SetScore(0, 4))).compile.toList
+        r4 <- interp.interpret(ScoreAction(channel, SetAll("viper", "hera", 4, 0))).compile.toList
+      } yield
+        assertEquals(r0, List(RespondWith("player 0 - 0 opponent"))) &&
+          assertEquals(r1, List(RespondWith("daut 0 - 0 opponent"))) &&
+          assertEquals(r2, List(RespondWith("daut 0 - 0 artofthetroll"))) &&
+          assertEquals(r3, List(RespondWith("daut 0 - 4 artofthetroll"))) &&
+          assertEquals(r4, List(RespondWith("viper 4 - 0 hera"))) // &&
     }
   )
 }

@@ -74,6 +74,18 @@ case class Counter(
     addedAt: Timestamp
 )
 
+case class Score(
+    id: Option[Int],
+    channel: Int,
+    player1: Option[String],
+    player2: Option[String],
+    player1Score: Int,
+    player2Score: Int
+) {
+  def display: String =
+    s"${player1.getOrElse("player")} $player1Score - $player2Score ${player2.getOrElse("opponent")}"
+}
+
 import TimestampInstances._
 
 object Quote {
@@ -90,4 +102,10 @@ object Stream {
 object Counter {
   implicit val counterDecoder: Decoder[Counter] = deriveDecoder[Counter]
   implicit val counterEncoder: Encoder[Counter] = deriveEncoder[Counter]
+}
+
+object Score {
+  val empty = Score(None, 0, None, None, 0, 0)
+  implicit val scoreDecoder: Decoder[Score] = deriveDecoder[Score]
+  implicit val scoreEncoder: Encoder[Score] = deriveEncoder[Score]
 }

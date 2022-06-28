@@ -17,12 +17,20 @@ case class Api[F[_]](
     streams: Streams[F],
     quotes: Quotes[F],
     counters: Counters[F],
-    healthCheck: HealthCheck[F]
+    healthCheck: HealthCheck[F],
+    scores: Scores[F]
 )
 
 object Api {
   def apply[F[_]: MonadCancelThrow](xa: Transactor[F]): Api[F] =
-    new Api[F](Streams.impl(xa), Quotes.impl(xa), Counters.impl(xa), HealthCheck.impl)
+    new Api[F](
+      Streams.impl(xa),
+      Quotes.impl(xa),
+      Counters.impl(xa),
+      HealthCheck.impl,
+      Scores.impl(xa)
+    )
 
-  def db: Api[ConnectionIO] = new Api[ConnectionIO](StreamsDb, QuotesDb, CountersDb, HealthCheckDb)
+  def db: Api[ConnectionIO] =
+    new Api[ConnectionIO](StreamsDb, QuotesDb, CountersDb, HealthCheckDb, ScoresDb)
 }

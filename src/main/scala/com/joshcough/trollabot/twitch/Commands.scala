@@ -17,7 +17,7 @@ import logstage.LogstageCodec
 import logstage.circe.LogstageCirceCodec
 import logstage.strict.LogIOStrict
 
-trait Permission
+sealed trait Permission
 case object God extends Permission
 case object Owner extends Permission
 case object ModOnly extends Permission
@@ -80,6 +80,30 @@ case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counte
 case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action
 case class HelpAction(commandName: String) extends Action
 case object BuildInfoAction extends Action
+case class ScoreAction(channelName: ChannelName, scoreArg: ScoreArg) extends Action
+case class SetPlayerAction(channelName: ChannelName, playerName: String) extends Action
+case class SetOpponentAction(channelName: ChannelName, playerName: String) extends Action
+
+sealed trait ScoreArg
+case object GetScore extends ScoreArg
+case class SetScore(player1Score: Int, player2Score: Int) extends ScoreArg
+case class SetAll(player1: String, player2: String, player1Score: Int, player2Score: Int)
+    extends ScoreArg
+
+object ScoreArg {
+  implicit val encodeResponse: Encoder[ScoreArg] = Encoder.instance {
+    case _ @GetScore            => "GetScore".asJson
+    case r @ SetScore(_, _)     => r.asJson
+    case r @ SetAll(_, _, _, _) => r.asJson
+  }
+
+  implicit val decodeResponse: Decoder[ScoreArg] =
+    List[Decoder[ScoreArg]](
+      Decoder[GetScore.type].widen,
+      Decoder[SetScore].widen,
+      Decoder[SetAll].widen
+    ).reduceLeft(_ or _)
+}
 
 object Action {
   implicit val encodeResponse: Encoder[Action] = Encoder.instance {
@@ -95,6 +119,9 @@ object Action {
     case r @ IncCounterAction(_, _)    => r.asJson
     case r @ HelpAction(_)             => r.asJson
     case _ @BuildInfoAction            => "BuildInfoAction".asJson
+    case r @ ScoreAction(_, _)         => r.asJson
+    case r @ SetPlayerAction(_, _)     => r.asJson
+    case r @ SetOpponentAction(_, _)   => r.asJson
   }
   implicit val decodeResponse: Decoder[Action] =
     List[Decoder[Action]](
@@ -109,33 +136,59 @@ object Action {
       Decoder[AddCounterAction].widen,
       Decoder[IncCounterAction].widen,
       Decoder[HelpAction].widen,
-      Decoder[BuildInfoAction.type].widen
+      Decoder[BuildInfoAction.type].widen,
+      Decoder[ScoreAction].widen,
+      Decoder[SetPlayerAction].widen,
+      Decoder[SetOpponentAction].widen
     ).reduceLeft(_ or _)
   implicit val logstageCodec: LogstageCodec[Action] = LogstageCirceCodec.derived[Action]
 }
 
 trait BotCommand {
   type A
+  type ActionType <: Action
   val name: String
-  val permission: Permission
   val parser: Parser[A]
-  override def toString: String = s"$name ${parser.describe} (permissions: $permission)"
+
+  val permission: ActionType => Permission
+
+  override def toString: String = s"$name ${parser.describe}"
   def help: String = toString // TODO: maybe we change this around later, but its fine for now.
-  def execute(channelName: ChannelName, chatUser: ChatUser, a: A): Action
-  def apply(channelName: ChannelName, chatUser: ChatUser, args: String): Either[String, Action] =
+
+  def execute(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
+
+  def apply(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      args: String
+  ): Either[String, ActionType] =
     parser(args.trim).toEither.map(a => execute(channelName, chatUser, a))
+
+  // returns true if the given user is allowed to run the command on the given channel
+  // false if not.
+  def hasPermssion(channelName: ChannelName, chatUser: ChatUser, a: ActionType): Boolean = {
+    def isStreamer = chatUser.username.name.toLowerCase == channelName.name.toLowerCase
+    def isGod: Boolean = chatUser.username.name.toLowerCase == "artofthetroll"
+    permission(a) match {
+      case God     => isGod
+      case Owner   => isStreamer || isGod
+      case ModOnly => chatUser.isMod || isStreamer || isGod
+      case Anyone  => true
+    }
+  }
 }
 
 object BotCommand {
-  def apply[T](cmdName: String, cmdParser: Parser[T], perm: Permission)(
-      f: (ChannelName, ChatUser, T) => Action
+  def apply[T, AT <: Action](cmdName: String, cmdParser: Parser[T], perm: AT => Permission)(
+      f: (ChannelName, ChatUser, T) => AT
   ): BotCommand =
     new BotCommand {
       override type A = T
+      override type ActionType = AT
       val name: String = cmdName
-      val permission: Permission = perm
+      val permission: ActionType => Permission = perm
       val parser: Parser[T] = cmdParser
-      def execute(channelName: ChannelName, chatUser: ChatUser, t: T): Action =
+      def execute(channelName: ChannelName, chatUser: ChatUser, t: T): AT =
         f(channelName, chatUser, t)
     }
 }
@@ -157,6 +210,12 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
       case IncCounterAction(channel, counter)          => incCounter(channel, counter)
       case HelpAction(commandName)                     => help(commandName, Commands.commands)
       case BuildInfoAction                             => buildInfo
+      case ScoreAction(channel, GetScore)              => getScore(channel)
+      case ScoreAction(channel, SetScore(p1s, p2s))    => setScore(channel, p1s, p2s)
+      case ScoreAction(channel, SetAll(p1, p2, p1s, p2s)) =>
+        setScoreAndPlayers(channel, p1, p2, p1s, p2s)
+      case SetPlayerAction(channelName, p1)   => setPlayer(channelName, p1)
+      case SetOpponentAction(channelName, p1) => setOpponent(channelName, p1)
     }
 
   def printStreams: Stream[ConnectionIO, Response] =
@@ -254,20 +313,26 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   val buildInfo: Stream[ConnectionIO, Response] =
     Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 
-  // returns true if the given user is allowed to run the command on the given channel
-  // false if not.
-  def checkPermissions(cmd: BotCommand, chatUser: ChatUser, channelName: ChannelName): Boolean = {
-    def isStreamer = chatUser.username.name.toLowerCase == channelName.name.toLowerCase
-    def isGod: Boolean = chatUser.username.name.toLowerCase == "artofthetroll"
+  def getScore(channel: ChannelName): Stream[ConnectionIO, Response] =
+    Stream.eval(api.scores.getScore(channel).map(s => RespondWith(s.display)))
 
-    cmd.permission match {
-      case God if isGod                                     => true
-      case Owner if isStreamer || isGod                     => true
-      case ModOnly if chatUser.isMod || isStreamer || isGod => true
-      case Anyone                                           => true
-      case _                                                => false
-    }
-  }
+  def setScore(channel: ChannelName, p1s: Int, p2s: Int): Stream[ConnectionIO, Response] =
+    Stream.eval(api.scores.setScore(channel, p1s, p2s).map(s => RespondWith(s.display)))
+
+  def setPlayer(channel: ChannelName, p1: String): Stream[ConnectionIO, Response] =
+    Stream.eval(api.scores.setPlayer1(channel, p1).map(s => RespondWith(s.display)))
+
+  def setOpponent(channel: ChannelName, p2: String): Stream[ConnectionIO, Response] =
+    Stream.eval(api.scores.setPlayer2(channel, p2).map(s => RespondWith(s.display)))
+
+  def setScoreAndPlayers(
+      channel: ChannelName,
+      p1: String,
+      p2: String,
+      p1s: Int,
+      p2s: Int
+  ): Stream[ConnectionIO, Response] =
+    Stream.eval(api.scores.setAll(channel, p1, p1s, p2, p2s).map(s => RespondWith(s.display)))
 
   private def withQuoteOr(
       foq: ConnectionIO[Option[Quote]],
@@ -292,25 +357,25 @@ object CommandInterpreter {
   def interpret[F[_]: MonadCancelThrow](
       msg: ChatMessage,
       cmd: BotCommand,
-      action: Action,
+      args: String,
       api: Api[ConnectionIO],
       xa: Transactor[F],
       L: LogIOStrict[F]
-  ): Stream[F, Response] = {
-    val interpreter: CommandInterpreter = CommandInterpreter(api)
+  ): Either[String, Stream[F, Response]] =
+    cmd.apply(msg.channel, msg.user, args).map { action =>
+      val e = Executing(cmd.name, msg.user, msg.channel, action)
 
-    val e = Executing(cmd.name, msg.user, msg.channel, action)
-
-    if (interpreter.checkPermissions(cmd, msg.user, msg.channel)) for {
-      _ <- Stream.eval(L.debug(s"executing $e"))
-      res <- interpreter.interpret(action).transact(xa)
-      _ <- Stream.eval(L.debug(s"done executing $e"))
-    } yield res
-    // user doesnt' have permission to execute this command, so just do nothing.
-    // we _could_ send back a message saying "you can't do that", but i think its too noisy.
-    else
-      Stream.eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
-  }
+      if (cmd.hasPermssion(msg.channel, msg.user, action)) for {
+        _ <- Stream.eval(L.debug(s"executing $e"))
+        res <- CommandInterpreter(api).interpret(action).transact(xa)
+        _ <- Stream.eval(L.debug(s"done executing $e"))
+      } yield res
+      // user doesnt' have permission to execute this command, so just do nothing.
+      // we _could_ send back a message saying "you can't do that", but i think its too noisy.
+      else
+        Stream
+          .eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
+    }
 
 }
 
@@ -320,55 +385,91 @@ case object Commands {
 
   val channelNameParser: Parser[ChannelName] = anyStringAs("channel name").map(ChannelName(_))
   val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
+  val commandNameParser: Parser[String] = anyStringAs("command_name")
+
+  def const[A, B](b: B): A => B = _ => b
 
   val printStreamsCommand: BotCommand =
-    BotCommand[Unit]("!printStreams", empty, God)((_, _, _) => PrintStreamsAction)
+    BotCommand[Unit, PrintStreamsAction.type]("!printStreams", empty, const(God))((_, _, _) =>
+      PrintStreamsAction
+    )
 
   val getQuoteCommand: BotCommand =
-    BotCommand[Option[Int]]("!quote", int.?, Anyone)((channelName, _, mn) =>
+    BotCommand[Option[Int], Action]("!quote", int.?, const(Anyone))((channelName, _, mn) =>
       mn.fold[Action](GetRandomQuoteAction(channelName))(n => GetExactQuoteAction(channelName, n))
     )
 
   val searchQuotesCommand: BotCommand =
-    BotCommand[String]("!search", slurp, Anyone)((channelName, _, like) =>
-      SearchQuotesAction(channelName, like)
+    BotCommand[String, SearchQuotesAction]("!search", slurp, const(Anyone))(
+      (channelName, _, like) => SearchQuotesAction(channelName, like)
     )
 
   val addQuoteCommand: BotCommand =
-    BotCommand[String]("!addQuote", slurp, ModOnly)((channelName, chatUser, text) =>
-      AddQuoteAction(channelName, chatUser, text)
+    BotCommand[String, AddQuoteAction]("!addQuote", slurp, const(ModOnly))(
+      (channelName, chatUser, text) => AddQuoteAction(channelName, chatUser, text)
     )
 
   val delQuoteCommand: BotCommand =
-    BotCommand[Int]("!delQuote", int, ModOnly)((channelName, _, n) =>
+    BotCommand[Int, DelQuoteAction]("!delQuote", int, const(ModOnly))((channelName, _, n) =>
       DelQuoteAction(channelName, n)
     )
 
   val partCommand: BotCommand =
-    BotCommand[Unit]("!part", empty, Owner)((c, _, _) => PartAction(c))
+    BotCommand[Unit, PartAction]("!part", empty, const(Owner))((c, _, _) => PartAction(c))
 
   val joinCommand: BotCommand =
-    BotCommand[ChannelName]("!join", channelNameParser, God)((_, _, newChannelName) =>
-      JoinAction(newChannelName)
+    BotCommand[ChannelName, JoinAction]("!join", channelNameParser, const(God))(
+      (_, _, newChannelName) => JoinAction(newChannelName)
     )
 
   val addCounterCommand: BotCommand =
-    BotCommand[CounterName]("!addCounter", counterNameParser, God)((channelName, chatUser, name) =>
-      AddCounterAction(channelName, chatUser, name)
+    BotCommand[CounterName, AddCounterAction]("!addCounter", counterNameParser, const(God))(
+      (channelName, chatUser, name) => AddCounterAction(channelName, chatUser, name)
     )
 
   val incCounterCommand: BotCommand =
-    BotCommand[CounterName]("!inc", counterNameParser, Anyone)((channelName, _, name) =>
-      IncCounterAction(channelName, name)
+    BotCommand[CounterName, IncCounterAction]("!inc", counterNameParser, const(Anyone))(
+      (channelName, _, name) => IncCounterAction(channelName, name)
     )
 
   val helpCommand: BotCommand =
-    BotCommand[String]("!help", anyStringAs("command_name"), Anyone)((_, _, command) =>
+    BotCommand[String, HelpAction]("!help", commandNameParser, const(Anyone))((_, _, command) =>
       HelpAction(command)
     )
 
   val buildInfoCommand: BotCommand =
-    BotCommand[Unit]("!buildInfo", empty, God)((_, _, _) => BuildInfoAction)
+    BotCommand[Unit, BuildInfoAction.type]("!buildInfo", empty, const(God))((_, _, _) =>
+      BuildInfoAction
+    )
+
+  val scoreCommand: BotCommand = {
+    val scoreParser: Parser[ScoreArg] =
+      eof.named("no arguments").^^^(GetScore) |
+        (int.named("p1_score") ~ int.named("p2_score")).map { case p1 ~ p2 => SetScore(p1, p2) } |
+        (anyString.named("p1_name") ~ int.named("p1_score") ~
+          anyString.named("p2_name") ~ int.named("p2_score")).map {
+          case p1 ~ p1Score ~ p2 ~ p2Score => SetAll(p1, p2, p1Score, p2Score)
+        }
+    // this is dumb, it should really be a ScoreAction.
+    def perms(a: ScoreAction): Permission =
+      a.scoreArg match {
+        case GetScore => Anyone
+        case _        => ModOnly
+      }
+    BotCommand[ScoreArg, ScoreAction]("!score", scoreParser, perms)((channelName, _, scoreArg) =>
+      ScoreAction(channelName, scoreArg)
+    )
+  }
+
+  val playerCommand: BotCommand =
+    BotCommand[String, SetPlayerAction]("!player", anyStringAs("player_name"), const(ModOnly))(
+      (channelName, _, name) => SetPlayerAction(channelName, name)
+    )
+
+  val opponentCommand: BotCommand =
+    BotCommand[String, SetOpponentAction]("!opponent", anyStringAs("player_name"), const(ModOnly))(
+      (channelName, _, name) => SetOpponentAction(channelName, name)
+    )
 
   val commands: Map[String, BotCommand] = List(
     joinCommand,
@@ -381,7 +482,10 @@ case object Commands {
     addCounterCommand,
     incCounterCommand,
     helpCommand,
-    buildInfoCommand
+    buildInfoCommand,
+    scoreCommand,
+    playerCommand,
+    opponentCommand
   ).map(c => (c.name, c)).toMap
 
 }
@@ -393,11 +497,6 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
     commands.get(commandName).map((_, args))
   }
 
-  def parseFully(msg: ChatMessage): Option[(BotCommand, Either[String, Action])] =
-    parseMessageAndFindCommand(msg).map {
-      case (cmd, args) => (cmd, cmd.apply(msg.channel, msg.user, args))
-    }
-
   def processMessage[F[_]: MonadCancelThrow](
       msg: ChatMessage,
       api: Api[ConnectionIO],
@@ -405,9 +504,12 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
   )(implicit
       L: LogIOStrict[F]
   ): Stream[F, Response] =
-    parseFully(msg) match {
-      case Some((cmd, Right(action))) => CommandInterpreter.interpret(msg, cmd, action, api, xa, L)
-      case Some((cmd, Left(_)))       => Stream(RespondWith(cmd.help))
+    parseMessageAndFindCommand(msg) match {
+      case Some((cmd, args)) =>
+        CommandInterpreter.interpret(msg, cmd, args, api, xa, L) match {
+          case Left(_)  => Stream(RespondWith(cmd.help))
+          case Right(r) => r
+        }
       // no command for this chat message, so just do nothing.
       case None => Stream.empty
     }
