@@ -104,7 +104,10 @@ class CommandsSuite extends PostgresContainerSuite {
 
   test("print streams command prints streams") {
     withInterpreter { interp =>
-      val expectedText = "Stream(Some(1),ChannelName(daut),false), Stream(Some(2),ChannelName(jonslow_),false), Stream(Some(3),ChannelName(artofthetroll),false)"
+      val expectedText =
+        """{"id":1,"name":{"name":"daut"},"joined":false},
+          |{"id":2,"name":{"name":"jonslow_"},"joined":false},
+          |{"id":3,"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
       for {
         response <- interp.interpret(PrintStreamsAction).compile.toList
       } yield assertEquals(response, List(RespondWith(expectedText)))

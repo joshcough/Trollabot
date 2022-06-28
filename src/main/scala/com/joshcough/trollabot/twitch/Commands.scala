@@ -144,7 +144,7 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
     }
 
   def printStreams: Stream[ConnectionIO, Response] =
-    streams.getStreams.map(_.toString).reduce((l, r) => s"$l, $r").map(RespondWith(_))
+    streams.getStreams.map(_.asJson.noSpaces).reduce((l, r) => s"$l,$r").map(RespondWith(_))
 
   def getExactQuote(channelName: ChannelName, qid: Int): Stream[ConnectionIO, Response] =
     withQuoteOr(quotes.getQuote(channelName, qid), s"I couldn't find quote #$qid, man.")
