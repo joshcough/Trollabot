@@ -74,7 +74,8 @@ case class DelQuoteAction(channelName: ChannelName, n: Int) extends Action
 case class PartAction(channelName: ChannelName) extends Action
 case class JoinAction(newChannelName: ChannelName) extends Action
 // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
-case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName) extends Action
+case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName)
+    extends Action
 case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action
 case class HelpAction(commandName: String) extends Action
 case object BuildInfoAction extends Action
@@ -158,7 +159,11 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
     quotes.searchQuotes(channelName, like).map(q => RespondWith(q.display)).take(1)
 
-  def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
+  def addQuote(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      text: String
+  ): Stream[ConnectionIO, Response] = {
     val q = quotes.insertQuote(text, chatUser.username, channelName).map {
       case Right(q) => RespondWith(q.display)
       case Left(q)  => RespondWith(s"That quote already exists man! It's #${q.qid}")
@@ -202,7 +207,10 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
         errHandler(e, s"I couldn't add counter for ${counterName.name} stream ${channelName.name}")
       }
 
-  def incCounter(channelName: ChannelName, counterName: CounterName): Stream[ConnectionIO, Response] =
+  def incCounter(
+      channelName: ChannelName,
+      counterName: CounterName
+  ): Stream[ConnectionIO, Response] =
     Stream
       .eval(
         counters
@@ -210,16 +218,23 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
           .map(c => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}"))
       )
       .handleErrorWith { e =>
-        errHandler(e, s"I couldn't increment counter for ${counterName.name} stream ${channelName.name}")
+        errHandler(
+          e,
+          s"I couldn't increment counter for ${counterName.name} stream ${channelName.name}"
+        )
       }
 
-  def help(commandName: String, knownCommands: Map[String, BotCommand]): Stream[ConnectionIO, Response] =
+  def help(
+      commandName: String,
+      knownCommands: Map[String, BotCommand]
+  ): Stream[ConnectionIO, Response] =
     Stream.emit(RespondWith(knownCommands.get(commandName) match {
       case None    => s"Unknown command: $commandName"
       case Some(c) => c.toString
     }))
 
-  val buildInfo: Stream[ConnectionIO, Response] = Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
+  val buildInfo: Stream[ConnectionIO, Response] =
+    Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 
   // returns true if the given user is allowed to run the command on the given channel
   // false if not.
@@ -236,7 +251,10 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
     }
   }
 
-  private def withQuoteOr(foq: ConnectionIO[Option[Quote]], msg: String): Stream[ConnectionIO, Response] =
+  private def withQuoteOr(
+      foq: ConnectionIO[Option[Quote]],
+      msg: String
+  ): Stream[ConnectionIO, Response] =
     Stream.eval(foq.map(oq => RespondWith(oq.map(_.display).getOrElse(msg))))
 
   private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
@@ -272,7 +290,8 @@ object CommandInterpreter {
     } yield res
     // user doesnt' have permission to execute this command, so just do nothing.
     // we _could_ send back a message saying "you can't do that", but i think its too noisy.
-    else Stream.eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
+    else
+      Stream.eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
   }
 
 }
@@ -324,7 +343,8 @@ case object Commands {
     val name: String = "!delQuote"
     val permission: Permission = ModOnly
     val parser: Parser[Int] = int
-    def execute(channelName: ChannelName, chatUser: ChatUser, n: Int): Action = DelQuoteAction(channelName, n)
+    def execute(channelName: ChannelName, chatUser: ChatUser, n: Int): Action =
+      DelQuoteAction(channelName, n)
   }
 
   val partCommand: BotCommand = new BotCommand {
@@ -407,7 +427,11 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
       case (cmd, args) => (cmd, cmd.apply(msg.channel, msg.user, args))
     }
 
-  def processMessage[F[_]: MonadCancelThrow](msg: ChatMessage, api: Api[ConnectionIO], xa: Transactor[F])(implicit
+  def processMessage[F[_]: MonadCancelThrow](
+      msg: ChatMessage,
+      api: Api[ConnectionIO],
+      xa: Transactor[F]
+  )(implicit
       L: LogIOStrict[F]
   ): Stream[F, Response] =
     parseFully(msg) match {

@@ -13,10 +13,14 @@ import logstage.strict.LogIOStrict
 
 object Chatbot {
 
-  def streamFromConfig(config: Configuration)(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
+  def streamFromConfig(
+      config: Configuration
+  )(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
     streamFromDb(config.irc, config.xa)
 
-  def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO])(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =
+  def streamFromDb(ircConfig: IrcConfig, xa: Transactor[IO])(implicit
+      L: LogIOStrict[IO]
+  ): fs2.Stream[IO, Message] =
     Chatbot[IO](ircConfig, xa).stream(Api.db)
 
   def streamFromDefaultConfig(implicit L: LogIOStrict[IO]): fs2.Stream[IO, Message] =

@@ -28,10 +28,14 @@ object Streams {
   def impl[F[_]: MonadCancelThrow](xa: Transactor[F]): Streams[F] =
     new Streams[F] {
       def getStreams: fs2.Stream[F, Stream] = StreamsDb.getStreams.transact(xa)
-      def markParted(channelName: ChannelName): F[Boolean] = StreamsDb.markParted(channelName).transact(xa)
-      def markJoined(channelName: ChannelName): F[Boolean] = StreamsDb.markJoined(channelName).transact(xa)
-      def insertStream(channelName: ChannelName): F[Boolean] = StreamsDb.insertStream(channelName).transact(xa)
-      def doesStreamExist(channelName: ChannelName): F[Boolean] = StreamsDb.doesStreamExist(channelName).transact(xa)
+      def markParted(channelName: ChannelName): F[Boolean] =
+        StreamsDb.markParted(channelName).transact(xa)
+      def markJoined(channelName: ChannelName): F[Boolean] =
+        StreamsDb.markJoined(channelName).transact(xa)
+      def insertStream(channelName: ChannelName): F[Boolean] =
+        StreamsDb.insertStream(channelName).transact(xa)
+      def doesStreamExist(channelName: ChannelName): F[Boolean] =
+        StreamsDb.doesStreamExist(channelName).transact(xa)
       def getAllStreams: fs2.Stream[F, Stream] = StreamsDb.getAllStreams.transact(xa)
       def getJoinedStreams: fs2.Stream[F, Stream] = StreamsDb.getJoinedStreams.transact(xa)
     }
@@ -39,11 +43,14 @@ object Streams {
 
 object StreamsDb extends Streams[ConnectionIO] {
   def getStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getAllStreams.stream
-  def markParted(channelName: ChannelName): ConnectionIO[Boolean] = Queries.partStream(channelName).run.map(_ > 0)
-  def markJoined(channelName: ChannelName): ConnectionIO[Boolean] = Queries.joinStream(channelName).run.map(_ > 0)
+  def markParted(channelName: ChannelName): ConnectionIO[Boolean] =
+    Queries.partStream(channelName).run.map(_ > 0)
+  def markJoined(channelName: ChannelName): ConnectionIO[Boolean] =
+    Queries.joinStream(channelName).run.map(_ > 0)
   def insertStream(channelName: ChannelName): ConnectionIO[Boolean] =
     Queries.insertStream(Stream(None, channelName, joined = false)).run.map(_ > 0)
-  def doesStreamExist(channelName: ChannelName): ConnectionIO[Boolean] = Queries.doesStreamExist(channelName).unique
+  def doesStreamExist(channelName: ChannelName): ConnectionIO[Boolean] =
+    Queries.doesStreamExist(channelName).unique
   def getAllStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getAllStreams.stream
   def getJoinedStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getJoinedStreams.stream
 }

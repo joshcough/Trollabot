@@ -13,12 +13,18 @@ object TimestampInstances {
   implicit val TimestampFormat: Encoder[Timestamp] with Decoder[Timestamp] =
     new Encoder[Timestamp] with Decoder[Timestamp] {
       override def apply(a: Timestamp): Json = Encoder.encodeLong.apply(a.getTime)
-      override def apply(c: HCursor): Result[Timestamp] = Decoder.decodeLong.map(s => new Timestamp(s)).apply(c)
+      override def apply(c: HCursor): Result[Timestamp] =
+        Decoder.decodeLong.map(s => new Timestamp(s)).apply(c)
     }
 }
 
 case class ChatUserName(name: String) extends AnyVal
-case class ChatUser(username: ChatUserName, isMod: Boolean, subscriber: Boolean, badges: Map[String, String])
+case class ChatUser(
+    username: ChatUserName,
+    isMod: Boolean,
+    subscriber: Boolean,
+    badges: Map[String, String]
+)
 case class ChannelName(name: String) extends AnyVal
 
 object ChatUserName {

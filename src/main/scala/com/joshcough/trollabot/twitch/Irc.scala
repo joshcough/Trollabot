@@ -58,7 +58,12 @@ object Irc {
     s.split(';').map(parseBadge).toMap
   }
 
-  def createChatMessage(badges: String, username: String, channel: String, message: String): ChatMessage = {
+  def createChatMessage(
+      badges: String,
+      username: String,
+      channel: String,
+      message: String
+  ): ChatMessage = {
     val badgeMap: Map[String, String] = parseBadges(badges)
     val chatUserName = ChatUserName(username)
     def is(fld: String): Boolean = badgeMap.get(fld).contains("1")
@@ -69,7 +74,10 @@ object Irc {
 
 import Irc._
 
-case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stream[F, OutgoingMessage])(
+case class Irc[F[_]: Network: Async](
+    ircConfig: IrcConfig,
+    initialMessages: Stream[F, OutgoingMessage]
+)(
     processChatMessage: ChatMessage => Stream[F, OutgoingMessage]
 )(implicit L: LogIOStrict[F]) {
   val stream: fs2.Stream[F, Message] = {
@@ -87,19 +95,23 @@ case class Irc[F[_]: Network: Async](ircConfig: IrcConfig, initialMessages: Stre
         case command if command.startsWith("PING") => sendMessage(socket, pong) *> Stream()
         case _ @PRIVMSGRegex(badges, username, _, channel, message) =>
           val cm = createChatMessage(badges, username, channel, message)
-          processChatMessage(cm).flatMap(om => sendMessage(socket, om).map(_ => IncomingMessage(m, List(om))))
+          processChatMessage(cm).flatMap(om =>
+            sendMessage(socket, om).map(_ => IncomingMessage(m, List(om)))
+          )
         case x => Stream(IncomingMessage(x, Nil))
       }
 
     val loginStream: Stream[F, OutgoingMessage] = Stream(login(ircConfig): _*)
 
     withSocket { socket =>
-      val outgoing: Stream[F, OutgoingMessage] = (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
-      val incoming: Stream[F, IncomingMessage] = socket.reads.through(text.utf8.decode).flatMap { s =>
-        for {
-          _ <- Stream.eval(L.debug(s"handling incoming message: $s"))
-          m <- handleIncomingMessage(socket, s)
-        } yield m
+      val outgoing: Stream[F, OutgoingMessage] =
+        (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
+      val incoming: Stream[F, IncomingMessage] = socket.reads.through(text.utf8.decode).flatMap {
+        s =>
+          for {
+            _ <- Stream.eval(L.debug(s"handling incoming message: $s"))
+            m <- handleIncomingMessage(socket, s)
+          } yield m
       }
       outgoing ++ incoming.repeat
     }

@@ -8,7 +8,11 @@ import doobie.util.transactor.Transactor
 
 trait Counters[F[_]] {
   def getCounters(channelName: ChannelName): fs2.Stream[F, Counter]
-  def insertCounter(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName): F[Counter]
+  def insertCounter(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      counterName: CounterName
+  ): F[Counter]
   def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Counter]
 }
 
@@ -20,7 +24,11 @@ object Counters {
 
       // TODO: this one might want to return an either or something, in case a counter with that name
       // already exists.
-      def insertCounter(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName): F[Counter] =
+      def insertCounter(
+          channelName: ChannelName,
+          chatUser: ChatUser,
+          counterName: CounterName
+      ): F[Counter] =
         CountersDb.insertCounter(channelName, chatUser, counterName).transact(xa)
 
       def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Counter] =
@@ -32,7 +40,11 @@ object CountersDb extends Counters[ConnectionIO] {
   def getCounters(channelName: ChannelName): fs2.Stream[ConnectionIO, Counter] =
     Queries.selectAllCountersForStream(channelName).stream
 
-  def insertCounter(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName): ConnectionIO[Counter] =
+  def insertCounter(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      counterName: CounterName
+  ): ConnectionIO[Counter] =
     Queries.insertCounter(counterName, chatUser.username, channelName).unique
 
   def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Counter] =

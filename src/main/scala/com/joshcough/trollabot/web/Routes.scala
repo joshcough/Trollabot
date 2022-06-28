@@ -32,11 +32,12 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "inspect" / "build_info"                => Ok(BuildInfo())
-      case GET -> Root / "inspect" / "streams" / "joined"        => Ok(S.getJoinedStreams)
-      case GET -> Root / "inspect" / "streams"                   => Ok(S.getAllStreams)
-      case GET -> Root / "inspect" / "quotes" / "count" / stream => Ok(Q.countQuotesInStream(ChannelName(stream)))
-      case GET -> Root / "inspect" / "quotes" / "count"          => Ok(Q.countQuotes)
+      case GET -> Root / "inspect" / "build_info"         => Ok(BuildInfo())
+      case GET -> Root / "inspect" / "streams" / "joined" => Ok(S.getJoinedStreams)
+      case GET -> Root / "inspect" / "streams"            => Ok(S.getAllStreams)
+      case GET -> Root / "inspect" / "quotes" / "count" / stream =>
+        Ok(Q.countQuotesInStream(ChannelName(stream)))
+      case GET -> Root / "inspect" / "quotes" / "count" => Ok(Q.countQuotes)
     }
   }
 

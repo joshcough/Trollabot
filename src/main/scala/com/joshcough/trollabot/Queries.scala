@@ -152,14 +152,19 @@ object Queries {
       createQuotesTable,
       createCountersTable
     ) match {
-      case (a, b, c, d, e, f) => (a.run, b.run, c.run, d.run, e.run, f.run).mapN(_ + _ + _ + _ + _ + _)
+      case (a, b, c, d, e, f) =>
+        (a.run, b.run, c.run, d.run, e.run, f.run).mapN(_ + _ + _ + _ + _ + _)
     }
 
   val deleteAllQuotes: Update0 = sql"delete from quotes".update
 
   val deleteAllStreams: Update0 = sql"delete from streams".update
 
-  def insertCounter(counterName: CounterName, username: ChatUserName, channelName: ChannelName): Query0[Counter] =
+  def insertCounter(
+      counterName: CounterName,
+      username: ChatUserName,
+      channelName: ChannelName
+  ): Query0[Counter] =
     sql"""insert into counters (name, current_count, channel, added_by)
           select ${counterName.name}, 0, s.id, ${username.name}
           from streams s where s.name = ${channelName.name}

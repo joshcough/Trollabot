@@ -12,7 +12,8 @@ import org.http4s.server.middleware.Logger
 
 object WebServer {
 
-  def streamFromConfig(config: Configuration): fs2.Stream[IO, Nothing] = stream(Api.apply(config.xa[IO]))
+  def streamFromConfig(config: Configuration): fs2.Stream[IO, Nothing] =
+    stream(Api.apply(config.xa[IO]))
 
   def streamFromDefaultConfig: fs2.Stream[IO, Nothing] =
     fs2.Stream.eval(Configuration.read()).flatMap {

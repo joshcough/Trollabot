@@ -27,5 +27,6 @@ object App extends IOApp {
     logDebugS("=== Welcome to trollabot! ===") *> bot.concurrently(webapp)
   }
 
-  def logDebugS(msg: String)(implicit L: LogIOStrict[IO]): Stream[IO, Unit] = Stream.eval(L.debug(s"$msg"))
+  def logDebugS(msg: String)(implicit L: LogIOStrict[IO]): Stream[IO, Unit] =
+    Stream.eval(L.debug(s"$msg"))
 }

@@ -13,7 +13,12 @@ object Count {
   implicit def countEntityEncoder[F[_]]: EntityEncoder[F, Count] = jsonEncoderOf
 }
 
-case class Api[F[_]](streams: Streams[F], quotes: Quotes[F], counters: Counters[F], healthCheck: HealthCheck[F])
+case class Api[F[_]](
+    streams: Streams[F],
+    quotes: Quotes[F],
+    counters: Counters[F],
+    healthCheck: HealthCheck[F]
+)
 
 object Api {
   def apply[F[_]: MonadCancelThrow](xa: Transactor[F]): Api[F] =

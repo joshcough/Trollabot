@@ -22,7 +22,11 @@ trait Quotes[F[_]] {
     * @param streamName the stream the quote is being added to.
     * @return Either ExistingQuote NewQuote
     */
-  def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): F[Either[Quote, Quote]]
+  def insertQuote(
+      text: String,
+      username: ChatUserName,
+      channelName: ChannelName
+  ): F[Either[Quote, Quote]]
   def deleteQuote(channelName: ChannelName, qid: Int): F[Boolean]
 
   def countQuotes: F[Count]
@@ -44,7 +48,11 @@ object Quotes {
       def searchQuotes(channelName: ChannelName, like: String): fs2.Stream[F, Quote] =
         QuotesDb.searchQuotes(channelName, like).transact(xa)
 
-      def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): F[Either[Quote, Quote]] =
+      def insertQuote(
+          text: String,
+          username: ChatUserName,
+          channelName: ChannelName
+      ): F[Either[Quote, Quote]] =
         QuotesDb.insertQuote(text, username, channelName).transact(xa)
 
       def deleteQuote(channelName: ChannelName, qid: Int): F[Boolean] =
@@ -70,7 +78,11 @@ object QuotesDb extends Quotes[ConnectionIO] {
   def searchQuotes(channelName: ChannelName, like: String): fs2.Stream[ConnectionIO, Quote] =
     Queries.searchQuotesForStream(channelName, like).stream
 
-  def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): ConnectionIO[Either[Quote, Quote]] =
+  def insertQuote(
+      text: String,
+      username: ChatUserName,
+      channelName: ChannelName
+  ): ConnectionIO[Either[Quote, Quote]] =
     for {
       o <- Queries.getQuoteByText(channelName, text).option
       r <- o match {

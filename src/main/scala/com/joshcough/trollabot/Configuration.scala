@@ -9,7 +9,8 @@ import pureconfig.{ConfigReader, ConfigSource}
 import pureconfig.generic.auto._
 
 case class Configuration(irc: IrcConfig, dbUrl: String, debug: Boolean) {
-  def xa[M[_]: Async]: Transactor[M] = Transactor.fromDriverManager[M]("org.postgresql.Driver", dbUrl)
+  def xa[M[_]: Async]: Transactor[M] =
+    Transactor.fromDriverManager[M]("org.postgresql.Driver", dbUrl)
 }
 
 object Configuration extends Ip4sCodecs {
