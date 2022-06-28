@@ -60,9 +60,9 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
   }
 
   def setupDB: ConnectionIO[Unit] = for {
-    _ <- Queries.recreateSchema
-    _ <- Queries.deleteAllQuotes.run
-    _ <- Queries.deleteAllStreams.run
+    _ <- TestQueries.recreateSchema
+    _ <- TestQueries.deleteAllQuotes.run
+    _ <- TestQueries.deleteAllStreams.run
     _ <- streams.map(s => StreamsDb.insertStream(s.name)).sequence
   } yield ()
 

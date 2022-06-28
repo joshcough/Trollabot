@@ -3,8 +3,8 @@ package com.joshcough.trollabot.api
 import cats.Monad
 import cats.effect.MonadCancelThrow
 import cats.implicits._
-import com.joshcough.trollabot.{ChannelName, Queries, Stream}
-import doobie.ConnectionIO
+import com.joshcough.trollabot.{ChannelName, Stream}
+import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 
@@ -41,16 +41,47 @@ object Streams {
     }
 }
 
+object StreamQueries {
+
+  val getJoinedStreams: Query0[Stream] =
+    sql"select * from streams where joined = true".query[Stream]
+
+  val getAllStreams: Query0[Stream] =
+    sql"select * from streams".query[Stream]
+
+  def getStreamId(channelName: ChannelName): Query0[Int] =
+    sql"select id from streams where name = ${channelName.name}".query[Int]
+
+  def doesStreamExist(channelName: ChannelName): Query0[Boolean] =
+    sql"select exists(select id from streams where name = ${channelName.name})".query[Boolean]
+
+  // TODO: what if stream already has an ID? thats bad right we need to catch that, because it shouldn't.
+  def insertStream(s: Stream): Update0 =
+    sql"insert into streams (name, joined) values (${s.name}, ${s.joined})".update
+
+  // TODO: instead of deleting - mark as deleted, by whom and when
+  def deleteStream(channelName: ChannelName): Update0 =
+    sql"delete from streams where name=${channelName.name}".update
+
+  // TODO: record who did this action
+  def partStream(channelName: ChannelName): Update0 =
+    sql"update streams set joined=false where name=${channelName.name}".update
+
+  // TODO: record who did this action
+  def joinStream(channelName: ChannelName): Update0 =
+    sql"update streams set joined=true where name=${channelName.name}".update
+}
+
 object StreamsDb extends Streams[ConnectionIO] {
-  def getStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getAllStreams.stream
+  def getStreams: fs2.Stream[ConnectionIO, Stream] = StreamQueries.getAllStreams.stream
   def markParted(channelName: ChannelName): ConnectionIO[Boolean] =
-    Queries.partStream(channelName).run.map(_ > 0)
+    StreamQueries.partStream(channelName).run.map(_ > 0)
   def markJoined(channelName: ChannelName): ConnectionIO[Boolean] =
-    Queries.joinStream(channelName).run.map(_ > 0)
+    StreamQueries.joinStream(channelName).run.map(_ > 0)
   def insertStream(channelName: ChannelName): ConnectionIO[Boolean] =
-    Queries.insertStream(Stream(None, channelName, joined = false)).run.map(_ > 0)
+    StreamQueries.insertStream(Stream(None, channelName, joined = false)).run.map(_ > 0)
   def doesStreamExist(channelName: ChannelName): ConnectionIO[Boolean] =
-    Queries.doesStreamExist(channelName).unique
-  def getAllStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getAllStreams.stream
-  def getJoinedStreams: fs2.Stream[ConnectionIO, Stream] = Queries.getJoinedStreams.stream
+    StreamQueries.doesStreamExist(channelName).unique
+  def getAllStreams: fs2.Stream[ConnectionIO, Stream] = StreamQueries.getAllStreams.stream
+  def getJoinedStreams: fs2.Stream[ConnectionIO, Stream] = StreamQueries.getJoinedStreams.stream
 }

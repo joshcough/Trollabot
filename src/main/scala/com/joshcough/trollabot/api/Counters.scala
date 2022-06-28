@@ -1,8 +1,8 @@
 package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
-import com.joshcough.trollabot.{ChannelName, ChatUser, Counter, CounterName, Queries}
-import doobie.ConnectionIO
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, Counter, CounterName}
+import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 
@@ -36,17 +36,55 @@ object Counters {
     }
 }
 
+object CounterQueries {
+
+  import doobie.implicits.javasql._
+
+  def countersJoinStreams(counterName: CounterName, channelName: ChannelName): Fragment =
+    fr"""
+      from counters c
+      join streams s on s.id = c.channel
+      where s.name = ${channelName.name} and c.name = ${counterName.name}
+      """
+
+  def insertCounter(
+      counterName: CounterName,
+      username: ChatUserName,
+      channelName: ChannelName
+  ): Query0[Counter] =
+    sql"""insert into counters (name, current_count, channel, added_by)
+          select ${counterName.name}, 0, s.id, ${username.name}
+          from streams s where s.name = ${channelName.name}
+          returning *""".query[Counter]
+
+  def counterValue(counterName: CounterName, channelName: ChannelName): Query0[Int] =
+    (sql"select c.current_count" ++ countersJoinStreams(counterName, channelName)).query[Int]
+
+  def selectAllCountersForStream(channelName: ChannelName): Query0[Counter] =
+    sql"""select c.* from counters c join streams s
+          on s.id = c.channel
+          where s.name = ${channelName.name}""".query[Counter]
+
+  def incrementCounter(counterName: CounterName, channelName: ChannelName): Query0[Counter] =
+    sql"""update counters c
+          set current_count = current_count + 1
+          from streams s
+          where c.channel = s.id and c.name = ${counterName.name} and s.name = ${channelName.name}
+          returning *""".query[Counter]
+
+}
+
 object CountersDb extends Counters[ConnectionIO] {
   def getCounters(channelName: ChannelName): fs2.Stream[ConnectionIO, Counter] =
-    Queries.selectAllCountersForStream(channelName).stream
+    CounterQueries.selectAllCountersForStream(channelName).stream
 
   def insertCounter(
       channelName: ChannelName,
       chatUser: ChatUser,
       counterName: CounterName
   ): ConnectionIO[Counter] =
-    Queries.insertCounter(counterName, chatUser.username, channelName).unique
+    CounterQueries.insertCounter(counterName, chatUser.username, channelName).unique
 
   def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Counter] =
-    Queries.incrementCounter(counterName, channelName).unique
+    CounterQueries.incrementCounter(counterName, channelName).unique
 }

@@ -71,6 +71,7 @@ case class SearchQuotesAction(channelName: ChannelName, like: String) extends Ac
 case class GetRandomQuoteAction(channelName: ChannelName) extends Action
 case class AddQuoteAction(channelName: ChannelName, chatUser: ChatUser, text: String) extends Action
 case class DelQuoteAction(channelName: ChannelName, n: Int) extends Action
+// TODO: we should keep track of the user who parted.
 case class PartAction(channelName: ChannelName) extends Action
 case class JoinAction(newChannelName: ChannelName) extends Action
 // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
@@ -125,6 +126,20 @@ trait BotCommand {
     parser(args.trim).toEither.map(a => execute(channelName, chatUser, a))
 }
 
+object BotCommand {
+  def apply[T](cmdName: String, cmdParser: Parser[T], perm: Permission)(
+      f: (ChannelName, ChatUser, T) => Action
+  ): BotCommand =
+    new BotCommand {
+      override type A = T
+      val name: String = cmdName
+      val permission: Permission = perm
+      val parser: Parser[T] = cmdParser
+      def execute(channelName: ChannelName, chatUser: ChatUser, t: T): Action =
+        f(channelName, chatUser, t)
+    }
+}
+
 case class CommandInterpreter(api: Api[ConnectionIO]) {
   import api._
 
@@ -157,7 +172,10 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   // What do we really want to return here? Maybe we just want to return a link...
   // or a random one? Who knows.
   def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
-    quotes.searchQuotes(channelName, like).map(q => RespondWith(q.display)).take(1)
+    Stream.eval(quotes.searchQuotes_Random(channelName, like).map {
+      case Some(q) => RespondWith(q.display)
+      case None    => RespondWith("Couldn't find any quotes that match that.")
+    })
 
   def addQuote(
       channelName: ChannelName,
@@ -303,101 +321,54 @@ case object Commands {
   val channelNameParser: Parser[ChannelName] = anyStringAs("channel name").map(ChannelName(_))
   val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
 
-  val printStreamsCommand: BotCommand = new BotCommand {
-    override type A = Unit
-    val name: String = "!printStreams"
-    val permission: Permission = God
-    val parser: Parser[Unit] = empty
-    def execute(channelName: ChannelName, chatUser: ChatUser, _r: Unit): Action = PrintStreamsAction
-  }
+  val printStreamsCommand: BotCommand =
+    BotCommand[Unit]("!printStreams", empty, God)((_, _, _) => PrintStreamsAction)
 
-  val getQuoteCommand: BotCommand = new BotCommand {
-    override type A = Option[Int]
-    val name: String = "!quote"
-    val permission: Permission = Anyone
-    val parser: Parser[Option[Int]] = int.?
-    def execute(channelName: ChannelName, chatUser: ChatUser, mn: Option[Int]): Action =
+  val getQuoteCommand: BotCommand =
+    BotCommand[Option[Int]]("!quote", int.?, Anyone)((channelName, _, mn) =>
       mn.fold[Action](GetRandomQuoteAction(channelName))(n => GetExactQuoteAction(channelName, n))
-  }
+    )
 
-  val searchQuotesCommand: BotCommand = new BotCommand {
-    override type A = String
-    val name: String = "!search"
-    val permission: Permission = Anyone
-    val parser: Parser[String] = slurp
-    def execute(channelName: ChannelName, chatUser: ChatUser, like: String): Action =
+  val searchQuotesCommand: BotCommand =
+    BotCommand[String]("!search", slurp, Anyone)((channelName, _, like) =>
       SearchQuotesAction(channelName, like)
-  }
+    )
 
-  val addQuoteCommand: BotCommand = new BotCommand {
-    override type A = String
-    val name: String = "!addQuote"
-    val permission: Permission = ModOnly
-    val parser: Parser[String] = slurp
-    def execute(channelName: ChannelName, chatUser: ChatUser, text: String): Action =
+  val addQuoteCommand: BotCommand =
+    BotCommand[String]("!addQuote", slurp, ModOnly)((channelName, chatUser, text) =>
       AddQuoteAction(channelName, chatUser, text)
-  }
+    )
 
-  val delQuoteCommand: BotCommand = new BotCommand {
-    override type A = Int
-    val name: String = "!delQuote"
-    val permission: Permission = ModOnly
-    val parser: Parser[Int] = int
-    def execute(channelName: ChannelName, chatUser: ChatUser, n: Int): Action =
+  val delQuoteCommand: BotCommand =
+    BotCommand[Int]("!delQuote", int, ModOnly)((channelName, _, n) =>
       DelQuoteAction(channelName, n)
-  }
+    )
 
-  val partCommand: BotCommand = new BotCommand {
-    override type A = Unit
-    val name: String = "!part"
-    val permission: Permission = Owner
-    val parser: Parser[Unit] = empty
-    override def execute(c: ChannelName, _u: ChatUser, _x: Unit): Action = PartAction(c)
-  }
+  val partCommand: BotCommand =
+    BotCommand[Unit]("!part", empty, Owner)((c, _, _) => PartAction(c))
 
-  val joinCommand: BotCommand = new BotCommand {
-    override type A = ChannelName
-    val name: String = "!join"
-    val permission: Permission = God
-    val parser: Parser[ChannelName] = channelNameParser
-    def execute(channelName: ChannelName, chatUser: ChatUser, newChannelName: ChannelName): Action =
+  val joinCommand: BotCommand =
+    BotCommand[ChannelName]("!join", channelNameParser, God)((_, _, newChannelName) =>
       JoinAction(newChannelName)
-  }
+    )
 
-  val addCounterCommand: BotCommand = new BotCommand {
-    override type A = CounterName
-    val name: String = "!addCounter"
-    val permission: Permission = Anyone
-    val parser: Parser[CounterName] = counterNameParser
-    def execute(channelName: ChannelName, chatUser: ChatUser, name: CounterName): Action =
+  val addCounterCommand: BotCommand =
+    BotCommand[CounterName]("!addCounter", counterNameParser, God)((channelName, chatUser, name) =>
       AddCounterAction(channelName, chatUser, name)
-  }
+    )
 
-  val incCounterCommand: BotCommand = new BotCommand {
-    override type A = CounterName
-    val name: String = "!inc"
-    val permission: Permission = Anyone
-    val parser: Parser[CounterName] = counterNameParser
-    def execute(channelName: ChannelName, _cu: ChatUser, name: CounterName): Action =
+  val incCounterCommand: BotCommand =
+    BotCommand[CounterName]("!inc", counterNameParser, Anyone)((channelName, _, name) =>
       IncCounterAction(channelName, name)
-  }
+    )
 
-  val helpCommand: BotCommand = new BotCommand {
-    override type A = String
-    val name: String = "!help"
-    val permission: Permission = Anyone
-    val parser: Parser[String] = anyStringAs("command_name")
-    def execute(channelName: ChannelName, _cu: ChatUser, command: String): Action =
+  val helpCommand: BotCommand =
+    BotCommand[String]("!help", anyStringAs("command_name"), Anyone)((_, _, command) =>
       HelpAction(command)
-  }
+    )
 
-  val buildInfoCommand: BotCommand = new BotCommand {
-    override type A = Unit
-    val name: String = "!buildInfo"
-    val permission: Permission = God
-    val parser: Parser[Unit] = empty
-    def execute(_channelName: ChannelName, _cu: ChatUser, _u: Unit): Action = BuildInfoAction
-  }
+  val buildInfoCommand: BotCommand =
+    BotCommand[Unit]("!buildInfo", empty, God)((_, _, _) => BuildInfoAction)
 
   val commands: Map[String, BotCommand] = List(
     joinCommand,

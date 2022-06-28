@@ -17,7 +17,7 @@ class CommandsSuite extends PostgresContainerSuite {
       commandRunner.parseFully(ChatMessage(user, channel, msg)).map(_._2) match {
         case Some(Right(a)) => a
         case Some(Left(err)) => fail(err)
-        case None => fail("couldn't parse")
+        case None => fail(s"couldn't parse $msg")
       }
     assertEquals(f("!join daut"), JoinAction(ChannelName("daut")))
     assertEquals(f("!part"), PartAction(channel))
@@ -86,7 +86,8 @@ class CommandsSuite extends PostgresContainerSuite {
         _ <- interp.addQuote(channel, user, "hello").compile.toList
         response1 <- interp.interpret(SearchQuotesAction(channel, "%hell%")).compile.toList
         response2 <- interp.interpret(SearchQuotesAction(channel, "%zzz%")).compile.toList
-      } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) && assertEquals(response2, Nil)
+      } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
+              assertEquals(response2, List(RespondWith("Couldn't find any quotes that match that.")))
     }
   }
 
