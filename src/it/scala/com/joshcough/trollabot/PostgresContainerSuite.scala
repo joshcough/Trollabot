@@ -13,6 +13,8 @@ import org.testcontainers.utility.DockerImageName
 
 import java.sql.DriverManager
 
+case class QuoteException(msg: String) extends RuntimeException
+
 object QuotesData {
   val daut: Stream = Stream(None, "daut", joined = false)
   val jonslow: Stream = Stream(None, "jonslow_", joined = false)
@@ -39,7 +41,7 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
   val dautChannel: ChannelName = ChannelName("daut")
   val jc: ChatUser = ChatUser(ChatUserName("jc"), isMod = false, subscriber = false, badges = Map())
 
-  def insertDautQuotes: ConnectionIO[List[Unit]] =
+  def insertDautQuotes: ConnectionIO[List[Quote]] =
     dautQuotes.map(q => insertAndGetQuote(q, "jc", daut)).sequence
 
   def insertDautCounters: ConnectionIO[Unit] =
@@ -74,9 +76,11 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
 
   def withDb[A](c: ConnectionIO[A]): IO[A] = withXa(c.transact(_))
 
-  def insertAndGetQuote(text: String, user: String, stream: Stream): ConnectionIO[Unit] = {
+  def insertAndGetQuote(text: String, user: String, stream: Stream): ConnectionIO[Quote] = {
     val dbAction = for {
-      newQ <- QuotesDb.insertQuote(text, user, stream.name)
+      newQ <- QuotesDb.insertQuote(text, user, stream.name).map(
+        _.fold(q => throw QuoteException(s"quote already exists: ${q.display}"), identity)
+      )
       newQO_ <- QuotesDb.getQuote(stream.name, newQ.qid)
       newQ_ = newQO_.getOrElse(fail(
         s"couldn't retrieve inserted quote: text: $text, user: $user, stream: $stream"
@@ -87,6 +91,7 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
       assertEquals(newQ.text, text)
       assertEquals(newQ_.text, text)
       assertEquals(newQ, newQ_)
+      newQ
     }
   }
 }

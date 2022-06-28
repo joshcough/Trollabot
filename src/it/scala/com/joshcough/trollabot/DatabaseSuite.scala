@@ -1,5 +1,6 @@
 package com.joshcough.trollabot
 
+import cats.implicits._
 import com.joshcough.trollabot.api.{CountersDb, QuotesDb, StreamsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
@@ -30,6 +31,15 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         qs <- QuotesDb.getQuotes(daut.name).compile.toList
       } yield assertEquals(qs.size, 5)
+    }
+  }
+
+  test("Can't insert the same quote twice") {
+    withDb {
+      for {
+        _ <- insertAndGetQuote("only insert me once!", "jc", daut)
+        e <- insertAndGetQuote("only insert me once!", "jc", daut).attempt
+      } yield assertEquals(e, Left(QuoteException("quote already exists: Quote #0: only insert me once!")))
     }
   }
 

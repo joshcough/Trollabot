@@ -59,6 +59,17 @@ class CommandsSuite extends PostgresContainerSuite {
     }
   }
 
+  test("can't add the same quote twice") {
+    withInterpreter { interp =>
+      for {
+        response1 <- interp.interpret(AddQuoteAction(channel, user, "hello")).compile.toList
+        response2 <- interp.interpret(AddQuoteAction(channel, user, "hello")).compile.toList
+      } yield
+        assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
+        assertEquals(response2, List(RespondWith("That quote already exists man! It's #0")))
+    }
+  }
+
   test("get quote command gets quote") {
     withInterpreter { interp =>
       for {

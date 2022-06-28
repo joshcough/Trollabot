@@ -34,7 +34,8 @@ object Queries {
         deleted bool NOT NULL DEFAULT false,
         deleted_by text,
         deleted_at TIMESTAMP WITH TIME ZONE,
-        CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid)
+        CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid),
+        CONSTRAINT unique_quote_channel_and_text UNIQUE (channel, text)
       )""".update
 
   val createCountersTable: Update0 =
@@ -81,6 +82,9 @@ object Queries {
 
   def getQuoteByQid(streamName: String, qid: Int): Query0[Quote] =
     (selectQuotes(streamName) ++ fr"and q.qid = $qid").query[Quote]
+
+  def getQuoteByText(streamName: String, text: String): Query0[Quote] =
+    (selectQuotes(streamName) ++ fr"and q.text = $text").query[Quote]
 
   def selectQuotes(streamName: String): Fragment =
     fr"select q.*" ++ quotesJoinStreams(streamName)

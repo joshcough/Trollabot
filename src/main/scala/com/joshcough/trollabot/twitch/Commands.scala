@@ -177,10 +177,15 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
     quotes.searchQuotes(channelName.name, like).map(q => RespondWith(q.display)).take(1)
 
-  def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] =
-    Stream
-      .eval(quotes.insertQuote(text, chatUser.username.name, channelName.name).map(q => RespondWith(q.display)))
-      .handleErrorWith { e => errHandler(e, s"I couldn't add quote for stream ${channelName.name}") }
+  def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
+    val q = quotes.insertQuote(text, chatUser.username.name, channelName.name).map {
+      case Right(q) => RespondWith(q.display)
+      case Left(q) => RespondWith(s"That quote already exists man! It's #${q.qid}")
+    }
+    def onErr(e: Throwable): Stream[Pure, Response] =
+      errHandler(e, s"I couldn't add quote for stream ${channelName.name}")
+    Stream.eval(q).handleErrorWith(onErr)
+  }
 
   // TODO: maybe we should mark the quote deleted instead of deleting it
   // and then we could take the user who deleted it too.
