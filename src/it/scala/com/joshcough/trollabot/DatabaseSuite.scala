@@ -21,7 +21,7 @@ class DatabaseSuite extends PostgresContainerSuite {
 
   test("Can insert a single quote") {
     withDb {
-      insertAndGetQuote("I deserve to be trolled", "jc", daut)
+      insertAndGetQuote("I deserve to be trolled", jcName, daut)
     }
   }
 
@@ -37,8 +37,8 @@ class DatabaseSuite extends PostgresContainerSuite {
   test("Can't insert the same quote twice") {
     withDb {
       for {
-        _ <- insertAndGetQuote("only insert me once!", "jc", daut)
-        e <- insertAndGetQuote("only insert me once!", "jc", daut).attempt
+        _ <- insertAndGetQuote("only insert me once!", jcName, daut)
+        e <- insertAndGetQuote("only insert me once!", jcName, daut).attempt
       } yield assertEquals(e, Left(QuoteException("quote already exists: Quote #0: only insert me once!")))
     }
   }
@@ -63,8 +63,8 @@ class DatabaseSuite extends PostgresContainerSuite {
 
       for {
         _ <- insertDautQuotes
-        _ <- insertAndGetQuote("idiota", "jc", jonslow)
-        _ <- insertAndGetQuote("muy", "jc", artoftroll)
+        _ <- insertAndGetQuote("idiota", jcName, jonslow)
+        _ <- insertAndGetQuote("muy", jcName, artoftroll)
 
         _ <- mustBeNQuotes(daut, 5)
         _ <- mustBeNQuotes(jonslow, 1)
@@ -79,8 +79,8 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         qs <- QuotesDb.searchQuotes(daut.name, "%man%").compile.toList
         expected = List(
-          AssertableQuote(Some(2),1,"come to my healing spot man!",1,"jc", deleted = false, None),
-          AssertableQuote(Some(5),4,"close us man!",1,"jc", deleted = false, None)
+          AssertableQuote(Some(2),1,"come to my healing spot man!",1,ChatUserName("jc"), deleted = false, None),
+          AssertableQuote(Some(5),4,"close us man!",1,ChatUserName("jc"), deleted = false, None)
         )
       } yield assertQuotes(qs, expected)
     }
@@ -102,7 +102,7 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- CountersDb.incrementCounter(dautChannel,CounterName("brutal")).map(AssertableCounter(_))
 
         // get all the counters
-        cs <- CountersDb.getCounters("daut").compile.toList.map(_.map(AssertableCounter(_)))
+        cs <- CountersDb.getCounters(ChannelName("daut")).compile.toList.map(_.map(AssertableCounter(_)))
       } yield
         assertEquals(c0, housed(0)) &&
         assertEquals(List(c1, c2), List(housed(1), housed(2))) &&
@@ -112,7 +112,7 @@ class DatabaseSuite extends PostgresContainerSuite {
 }
 
 case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: Int,
-                           addedBy: String,  deleted: Boolean, deletedBy: Option[String])
+                           addedBy: ChatUserName,  deleted: Boolean, deletedBy: Option[ChatUserName])
 case class AssertableCounter(id: Option[Int], name: CounterName, count: Int, channel: Int, addedBy: ChatUserName)
 
 object AssertableQuote {

@@ -7,7 +7,8 @@ import doobie.ConnectionIO
 
 class CommandsSuite extends PostgresContainerSuite {
 
-  val user: ChatUser = ChatUser(ChatUserName("artofthetroll"), isMod = true, subscriber = true, badges = Map())
+  val userName: ChatUserName = ChatUserName("artofthetroll")
+  val user: ChatUser = ChatUser(userName, isMod = true, subscriber = true, badges = Map())
   val channel: ChannelName = ChannelName("artofthetroll")
 
   test("commands parse") {
@@ -18,7 +19,7 @@ class CommandsSuite extends PostgresContainerSuite {
         case Some(Left(err)) => fail(err)
         case None => fail("couldn't parse")
       }
-    assertEquals(f("!join daut"), JoinAction("daut"))
+    assertEquals(f("!join daut"), JoinAction(ChannelName("daut")))
     assertEquals(f("!part"), PartAction(channel))
     assertEquals(f("!addQuote hi"), AddQuoteAction(channel, user, "hi"))
     assertEquals(f("!delQuote 0"), DelQuoteAction(channel, 0))
@@ -38,8 +39,8 @@ class CommandsSuite extends PostgresContainerSuite {
   test("join command joins") {
     withInterpreter { interp =>
       for {
-        response <- interp.interpret(JoinAction("artofthetroll")).compile.toList
-      } yield assertEquals(response, List(Join("artofthetroll"), RespondWith("Joining artofthetroll!")))
+        response <- interp.interpret(JoinAction(channel)).compile.toList
+      } yield assertEquals(response, List(Join(channel), RespondWith("Joining artofthetroll!")))
     }
   }
 
@@ -103,7 +104,7 @@ class CommandsSuite extends PostgresContainerSuite {
 
   test("print streams command prints streams") {
     withInterpreter { interp =>
-      val expectedText = "Stream(Some(1),daut,false), Stream(Some(2),jonslow_,false), Stream(Some(3),artofthetroll,false)"
+      val expectedText = "Stream(Some(1),ChannelName(daut),false), Stream(Some(2),ChannelName(jonslow_),false), Stream(Some(3),ChannelName(artofthetroll),false)"
       for {
         response <- interp.interpret(PrintStreamsAction).compile.toList
       } yield assertEquals(response, List(RespondWith(expectedText)))

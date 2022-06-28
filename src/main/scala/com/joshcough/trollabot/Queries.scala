@@ -50,44 +50,44 @@ object Queries {
         CONSTRAINT unique_counter_channel UNIQUE (channel, name)
       )""".update
 
-  def getRandomQuoteForStream(streamName: String): Query0[Quote] =
-    (fr"select q.*" ++ quotesJoinStreams(streamName) ++ fr"order by random() limit 1").query[Quote]
+  def getRandomQuoteForStream(channelName: ChannelName): Query0[Quote] =
+    (fr"select q.*" ++ quotesJoinStreams(channelName) ++ fr"order by random() limit 1").query[Quote]
 
-  def quotesJoinStreams(streamName: String): Fragment =
+  def quotesJoinStreams(channelName: ChannelName): Fragment =
     fr"""
       from quotes q
       join streams s on s.id = q.channel
-      where s.name = $streamName
+      where s.name = ${channelName.name}
       """
 
-  def countersJoinStreams(counterName: CounterName, streamName: String): Fragment =
+  def countersJoinStreams(counterName: CounterName, channelName: ChannelName): Fragment =
     fr"""
       from counters c
       join streams s on s.id = c.channel
-      where s.name = $streamName and c.name = ${counterName.name}
+      where s.name = ${channelName.name} and c.name = ${counterName.name}
       """
 
   val getAllQuotes: Query0[Quote] = sql"select q.* from quotes q".query[Quote]
 
   val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
-  def countQuotesInStream(streamName: String): Query0[Int] =
-    (fr"select count(*)" ++ quotesJoinStreams(streamName)).query[Int]
+  def countQuotesInStream(channelName: ChannelName): Query0[Int] =
+    (fr"select count(*)" ++ quotesJoinStreams(channelName)).query[Int]
 
-  def getAllQuotesForStream(streamName: String): Query0[Quote] =
-    selectQuotes(streamName).query[Quote]
+  def getAllQuotesForStream(channelName: ChannelName): Query0[Quote] =
+    selectQuotes(channelName).query[Quote]
 
-  def searchQuotesForStream(streamName: String, like: String): doobie.Query0[Quote] =
-    (selectQuotes(streamName) ++ fr"and q.text LIKE $like order by q.qid ASC")
+  def searchQuotesForStream(channelName: ChannelName, like: String): doobie.Query0[Quote] =
+    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by q.qid ASC")
       .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
 
-  def getQuoteByQid(streamName: String, qid: Int): Query0[Quote] =
-    (selectQuotes(streamName) ++ fr"and q.qid = $qid").query[Quote]
+  def getQuoteByQid(channelName: ChannelName, qid: Int): Query0[Quote] =
+    (selectQuotes(channelName) ++ fr"and q.qid = $qid").query[Quote]
 
-  def getQuoteByText(streamName: String, text: String): Query0[Quote] =
-    (selectQuotes(streamName) ++ fr"and q.text = $text").query[Quote]
+  def getQuoteByText(channelName: ChannelName, text: String): Query0[Quote] =
+    (selectQuotes(channelName) ++ fr"and q.text = $text").query[Quote]
 
-  def selectQuotes(streamName: String): Fragment =
-    fr"select q.*" ++ quotesJoinStreams(streamName)
+  def selectQuotes(channelName: ChannelName): Fragment =
+    fr"select q.*" ++ quotesJoinStreams(channelName)
 
   val getJoinedStreams: Query0[Stream] =
     sql"select * from streams where joined = true".query[Stream]
@@ -95,51 +95,51 @@ object Queries {
   val getAllStreams: Query0[Stream] =
     sql"select * from streams".query[Stream]
 
-  def getStreamId(streamName: String): Query0[Int] =
-    sql"select id from streams where name = $streamName".query[Int]
+  def getStreamId(channelName: ChannelName): Query0[Int] =
+    sql"select id from streams where name = ${channelName.name}".query[Int]
 
-  def doesStreamExist(streamName: String): Query0[Boolean] =
-    sql"select exists(select id from streams where name = $streamName)".query[Boolean]
+  def doesStreamExist(channelName: ChannelName): Query0[Boolean] =
+    sql"select exists(select id from streams where name = ${channelName.name})".query[Boolean]
 
   // TODO: what if stream already has an ID? thats bad right we need to catch that, because it shouldn't.
   def insertStream(s: Stream): Update0 =
     sql"insert into streams (name, joined) values (${s.name}, ${s.joined})".update
 
   // TODO: what if quote already has an ID? thats bad right we need to catch that, because it shouldn't.
-  def insertQuote(text: String, username: String, streamName: String): Query0[Quote] =
+  def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): Query0[Quote] =
     (fr"insert into quotes (qid, text, channel, added_by)" ++
       fr"select" ++
-      fr"(" ++ nextQidForChannel_(streamName) ++ fr")," ++
+      fr"(" ++ nextQidForChannel_(channelName) ++ fr")," ++
       fr"""$text,
              s.id,
-             $username
-             from streams s where s.name = $streamName
+             ${username.name}
+             from streams s where s.name = ${channelName.name}
              returning *""").query[Quote]
 
   // TODO: instead of deleting - mark as deleted, by whom and when
-  def deleteQuote(streamName: String, qid: Int): Update0 =
+  def deleteQuote(channelName: ChannelName, qid: Int): Update0 =
     sql"""delete from quotes q
           using streams s
-          where s.id = q.channel and s.name = $streamName and q.qid = $qid
+          where s.id = q.channel and s.name = ${channelName.name} and q.qid = $qid
        """.update
 
   // TODO: instead of deleting - mark as deleted, by whom and when
-  def deleteStream(streamName: String): Update0 =
-    sql"delete from streams where name=$streamName".update
+  def deleteStream(channelName: ChannelName): Update0 =
+    sql"delete from streams where name=${channelName.name}".update
 
   // TODO: record who did this action
-  def partStream(streamName: String): Update0 =
-    sql"update streams set joined=false where name=$streamName".update
+  def partStream(channelName: ChannelName): Update0 =
+    sql"update streams set joined=false where name=${channelName.name}".update
 
   // TODO: record who did this action
-  def joinStream(streamName: String): Update0 =
-    sql"update streams set joined=true where name=$streamName".update
+  def joinStream(channelName: ChannelName): Update0 =
+    sql"update streams set joined=true where name=${channelName.name}".update
 
-  def nextQidForChannel_(streamName: String): Fragment =
-    fr"select coalesce(max(q.qid) + 1, 0)" ++ quotesJoinStreams(streamName)
+  def nextQidForChannel_(channelName: ChannelName): Fragment =
+    fr"select coalesce(max(q.qid) + 1, 0)" ++ quotesJoinStreams(channelName)
 
-  def nextQidForChannel(streamName: String): Query0[Int] =
-    nextQidForChannel_(streamName).query[Int]
+  def nextQidForChannel(channelName: ChannelName): Query0[Int] =
+    nextQidForChannel_(channelName).query[Int]
 
   // these three are pretty much just for testing i think.
 
@@ -159,22 +159,24 @@ object Queries {
 
   val deleteAllStreams: Update0 = sql"delete from streams".update
 
-  def insertCounter(counterName: CounterName, username: String, streamName: String): Query0[Counter] =
+  def insertCounter(counterName: CounterName, username: ChatUserName, channelName: ChannelName): Query0[Counter] =
     sql"""insert into counters (name, current_count, channel, added_by)
-          select ${counterName.name}, 0, s.id, $username
-          from streams s where s.name = $streamName
+          select ${counterName.name}, 0, s.id, ${username.name}
+          from streams s where s.name = ${channelName.name}
           returning *""".query[Counter]
 
-  def counterValue(counterName: CounterName, streamName: String): Query0[Int] =
-    (sql"select c.current_count" ++ countersJoinStreams(counterName, streamName)).query[Int]
+  def counterValue(counterName: CounterName, channelName: ChannelName): Query0[Int] =
+    (sql"select c.current_count" ++ countersJoinStreams(counterName, channelName)).query[Int]
 
-  def selectAllCountersForStream(streamName: String): Query0[Counter] =
-    sql"select c.* from counters c join streams s on s.id = c.channel where s.name = $streamName".query[Counter]
+  def selectAllCountersForStream(channelName: ChannelName): Query0[Counter] =
+    sql"""select c.* from counters c join streams s
+          on s.id = c.channel
+          where s.name = ${channelName.name}""".query[Counter]
 
-  def incrementCounter(counterName: CounterName, streamName: String): Query0[Counter] =
+  def incrementCounter(counterName: CounterName, channelName: ChannelName): Query0[Counter] =
     sql"""update counters c
           set current_count = current_count + 1
           from streams s
-          where c.channel = s.id and c.name = ${counterName.name} and s.name = $streamName
+          where c.channel = s.id and c.name = ${counterName.name} and s.name = ${channelName.name}
           returning *""".query[Counter]
 }

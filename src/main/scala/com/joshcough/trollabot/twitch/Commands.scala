@@ -43,7 +43,7 @@ object Response {
 }
 
 case class RespondWith(s: String) extends Response
-case class Join(newChannel: String) extends Response
+case class Join(newChannel: ChannelName) extends Response
 case object Part extends Response {
   implicit val circeCodec: Codec[Part.type] = derivation.deriveCodec[Part.type]
   implicit val logstageCodec: LogstageCodec[Part.type] = LogstageCirceCodec.derived[Part.type]
@@ -72,7 +72,7 @@ case class GetRandomQuoteAction(channelName: ChannelName) extends Action
 case class AddQuoteAction(channelName: ChannelName, chatUser: ChatUser, text: String) extends Action
 case class DelQuoteAction(channelName: ChannelName, n: Int) extends Action
 case class PartAction(channelName: ChannelName) extends Action
-case class JoinAction(newChannelName: String) extends Action
+case class JoinAction(newChannelName: ChannelName) extends Action
 // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
 case class AddCounterAction(channelName: ChannelName, chatUser: ChatUser, counterName: CounterName) extends Action
 case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action
@@ -136,7 +136,7 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
       case AddQuoteAction(channelName, chatUser, text) => addQuote(channelName, chatUser, text)
       case DelQuoteAction(channelName, qid)            => deleteQuote(channelName, qid)
       case PartAction(channelName)                     => part(channelName)
-      case JoinAction(newChannelName: String)          => join(newChannelName)
+      case JoinAction(newChannelName)                  => join(newChannelName)
       case AddCounterAction(channel, user, counter)    => addCounter(channel, user, counter)
       case IncCounterAction(channel, counter)          => incCounter(channel, counter)
       case HelpAction(commandName)                     => help(commandName, Commands.commands)
@@ -147,19 +147,19 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
     streams.getStreams.map(_.toString).reduce((l, r) => s"$l, $r").map(RespondWith(_))
 
   def getExactQuote(channelName: ChannelName, qid: Int): Stream[ConnectionIO, Response] =
-    withQuoteOr(quotes.getQuote(channelName.name, qid), s"I couldn't find quote #$qid, man.")
+    withQuoteOr(quotes.getQuote(channelName, qid), s"I couldn't find quote #$qid, man.")
 
   def getRandomQuote(channelName: ChannelName): Stream[ConnectionIO, Response] =
-    withQuoteOr(quotes.getRandomQuote(channelName.name), "I couldn't find any quotes, man.")
+    withQuoteOr(quotes.getRandomQuote(channelName), "I couldn't find any quotes, man.")
 
   // TODO: this take(1) here is a little sus.
   // What do we really want to return here? Maybe we just want to return a link...
   // or a random one? Who knows.
   def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
-    quotes.searchQuotes(channelName.name, like).map(q => RespondWith(q.display)).take(1)
+    quotes.searchQuotes(channelName, like).map(q => RespondWith(q.display)).take(1)
 
   def addQuote(channelName: ChannelName, chatUser: ChatUser, text: String): Stream[ConnectionIO, Response] = {
-    val q = quotes.insertQuote(text, chatUser.username.name, channelName.name).map {
+    val q = quotes.insertQuote(text, chatUser.username, channelName).map {
       case Right(q) => RespondWith(q.display)
       case Left(q)  => RespondWith(s"That quote already exists man! It's #${q.qid}")
     }
@@ -172,20 +172,20 @@ case class CommandInterpreter(api: Api[ConnectionIO]) {
   // and then we could take the user who deleted it too.
   // we could add two new columns to quote: deletedAt and deletedBy
   def deleteQuote(channelName: ChannelName, n: Int): Stream[ConnectionIO, Response] =
-    Stream.eval(quotes.deleteQuote(channelName.name, n).map {
+    Stream.eval(quotes.deleteQuote(channelName, n).map {
       case true  => RespondWith("Ok I deleted it.")
       case false => RespondWith(err(s"I couldn't delete quote $n for channel ${channelName.name}"))
     })
 
   def part(channelName: ChannelName): Stream[ConnectionIO, Response] =
     Stream
-      .eval(streams.markParted(channelName.name))
+      .eval(streams.markParted(channelName))
       .flatMap(_ => Stream(RespondWith("Goodbye cruel world!"), Part))
 
-  def join(newChannelName: String): Stream[ConnectionIO, Response] =
+  def join(newChannelName: ChannelName): Stream[ConnectionIO, Response] =
     Stream
       .eval(streams.join(newChannelName))
-      .flatMap(_ => Stream(Join(newChannelName), RespondWith(s"Joining $newChannelName!")))
+      .flatMap(_ => Stream(Join(newChannelName), RespondWith(s"Joining ${newChannelName.name}!")))
 
   def addCounter(
       channelName: ChannelName,
@@ -281,6 +281,9 @@ case class ChatMessage(user: ChatUser, channel: ChannelName, body: String)
 
 case object Commands {
 
+  val channelNameParser: Parser[ChannelName] = anyStringAs("channel name").map(ChannelName(_))
+  val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
+
   val printStreamsCommand: BotCommand = new BotCommand {
     override type A = Unit
     val name: String = "!printStreams"
@@ -333,15 +336,13 @@ case object Commands {
   }
 
   val joinCommand: BotCommand = new BotCommand {
-    override type A = String
+    override type A = ChannelName
     val name: String = "!join"
     val permission: Permission = God
-    val parser: Parser[String] = anyString
-    def execute(channelName: ChannelName, chatUser: ChatUser, newChannelName: String): Action =
+    val parser: Parser[ChannelName] = channelNameParser
+    def execute(channelName: ChannelName, chatUser: ChatUser, newChannelName: ChannelName): Action =
       JoinAction(newChannelName)
   }
-
-  val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
 
   val addCounterCommand: BotCommand = new BotCommand {
     override type A = CounterName

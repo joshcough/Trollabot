@@ -2,7 +2,7 @@ package com.joshcough.trollabot.web
 
 import cats.effect.Sync
 import cats.implicits._
-import com.joshcough.trollabot.BuildInfo
+import com.joshcough.trollabot.{BuildInfo, ChannelName}
 import com.joshcough.trollabot.api.{Api, Counters, HealthCheck, Quotes, Streams}
 import org.http4s.{BuildInfo => _, _}
 import org.http4s.circe.CirceEntityCodec._
@@ -14,9 +14,9 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "quotes" / stream / IntVar(qid) => Ok(Q.getQuote(stream, qid))
-      case GET -> Root / "quotes" / stream / like        => Ok(Q.searchQuotes(stream, like))
-      case GET -> Root / "quotes" / stream               => Ok(Q.getQuotes(stream))
+      case GET -> Root / "quotes" / stream / IntVar(qid) => Ok(Q.getQuote(ChannelName(stream), qid))
+      case GET -> Root / "quotes" / stream / like        => Ok(Q.searchQuotes(ChannelName(stream), like))
+      case GET -> Root / "quotes" / stream               => Ok(Q.getQuotes(ChannelName(stream)))
     }
   }
 
@@ -24,7 +24,7 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "counters" / stream => Ok(C.getCounters(stream))
+      case GET -> Root / "counters" / stream => Ok(C.getCounters(ChannelName(stream)))
     }
   }
 
@@ -32,11 +32,11 @@ object Routes {
     val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "inspect" / "build_info"                    => Ok(BuildInfo())
-      case GET -> Root / "inspect" / "streams" / "joined"            => Ok(S.getJoinedStreams)
-      case GET -> Root / "inspect" / "streams"                       => Ok(S.getAllStreams)
-      case GET -> Root / "inspect" / "quotes" / "count" / streamName => Ok(Q.countQuotesInStream(streamName))
-      case GET -> Root / "inspect" / "quotes" / "count"              => Ok(Q.countQuotes)
+      case GET -> Root / "inspect" / "build_info"                => Ok(BuildInfo())
+      case GET -> Root / "inspect" / "streams" / "joined"        => Ok(S.getJoinedStreams)
+      case GET -> Root / "inspect" / "streams"                   => Ok(S.getAllStreams)
+      case GET -> Root / "inspect" / "quotes" / "count" / stream => Ok(Q.countQuotesInStream(ChannelName(stream)))
+      case GET -> Root / "inspect" / "quotes" / "count"          => Ok(Q.countQuotes)
     }
   }
 

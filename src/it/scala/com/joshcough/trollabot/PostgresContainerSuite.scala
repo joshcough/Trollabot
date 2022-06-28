@@ -15,9 +15,9 @@ import java.sql.DriverManager
 case class QuoteException(msg: String) extends RuntimeException
 
 object QuotesData {
-  val daut: Stream = Stream(None, "daut", joined = false)
-  val jonslow: Stream = Stream(None, "jonslow_", joined = false)
-  val artoftroll: Stream = Stream(None, "artofthetroll", joined = true)
+  val daut: Stream = Stream(None, ChannelName("daut"), joined = false)
+  val jonslow: Stream = Stream(None, ChannelName("jonslow_"), joined = false)
+  val artoftroll: Stream = Stream(None, ChannelName("artofthetroll"), joined = true)
   val streams: List[Stream] = List(daut, jonslow, artoftroll)
 
   val dautQuotes: List[String] = List(
@@ -38,10 +38,11 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
   override type Containers = PostgreSQLContainer
 
   val dautChannel: ChannelName = ChannelName("daut")
-  val jc: ChatUser = ChatUser(ChatUserName("jc"), isMod = false, subscriber = false, badges = Map())
+  val jcName: ChatUserName = ChatUserName("jc")
+  val jc: ChatUser = ChatUser(jcName, isMod = false, subscriber = false, badges = Map())
 
   def insertDautQuotes: ConnectionIO[List[Quote]] =
-    dautQuotes.map(q => insertAndGetQuote(q, "jc", daut)).sequence
+    dautQuotes.map(q => insertAndGetQuote(q, jcName, daut)).sequence
 
   def insertDautCounters: ConnectionIO[Unit] =
     for {
@@ -75,7 +76,7 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
 
   def withDb[A](c: ConnectionIO[A]): IO[A] = withXa(c.transact(_))
 
-  def insertAndGetQuote(text: String, user: String, stream: Stream): ConnectionIO[Quote] = {
+  def insertAndGetQuote(text: String, user: ChatUserName, stream: Stream): ConnectionIO[Quote] = {
     val dbAction = for {
       newQ <- QuotesDb.insertQuote(text, user, stream.name).map(
         _.fold(q => throw QuoteException(s"quote already exists: ${q.display}"), identity)

@@ -17,9 +17,9 @@ object TimestampInstances {
     }
 }
 
-case class ChatUserName(name: String)
+case class ChatUserName(name: String) extends AnyVal
 case class ChatUser(username: ChatUserName, isMod: Boolean, subscriber: Boolean, badges: Map[String, String])
-case class ChannelName(name: String)
+case class ChannelName(name: String) extends AnyVal
 
 object ChatUserName {
   implicit val circeCodec: Codec[ChatUserName] = derivation.deriveCodec[ChatUserName]
@@ -36,23 +36,23 @@ object ChannelName {
   implicit val logstageCodec: LogstageCodec[ChannelName] = LogstageCirceCodec.derived[ChannelName]
 }
 
-case class Stream(id: Option[Int], name: String, joined: Boolean)
+case class Stream(id: Option[Int], name: ChannelName, joined: Boolean)
 
 case class Quote(
     id: Option[Int],
     qid: Int,
     text: String,
     channel: Int,
-    addedBy: String,
+    addedBy: ChatUserName,
     addedAt: Timestamp,
     deleted: Boolean,
-    deletedBy: Option[String],
+    deletedBy: Option[ChatUserName],
     deletedAt: Option[Timestamp]
 ) {
   def display: String = s"Quote #$qid: $text"
 }
 
-case class CounterName(name: String)
+case class CounterName(name: String) extends AnyVal
 
 object CounterName {
   implicit val circeCodec: Codec[CounterName] = derivation.deriveCodec[CounterName]

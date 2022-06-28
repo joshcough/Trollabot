@@ -33,9 +33,10 @@ object Irc {
   private def capReq(capability: String): OutgoingMessage = OutgoingMessage(s"CAP REQ $capability")
   private def pass(token: String): OutgoingMessage = OutgoingMessage(s"PASS $token")
   private def nick(username: String): OutgoingMessage = OutgoingMessage(s"NICK $username")
-  def join(channel: String): OutgoingMessage = OutgoingMessage(s"JOIN #$channel")
-  def part(channel: String): OutgoingMessage = OutgoingMessage(s"PART #$channel")
-  def privMsg(channel: String, message: String): OutgoingMessage = OutgoingMessage(s"PRIVMSG #$channel :$message")
+  def join(channel: ChannelName): OutgoingMessage = OutgoingMessage(s"JOIN #${channel.name}")
+  def part(channel: ChannelName): OutgoingMessage = OutgoingMessage(s"PART #${channel.name}")
+  def privMsg(channel: ChannelName, message: String): OutgoingMessage =
+    OutgoingMessage(s"PRIVMSG #${channel.name} :$message")
 
   val PRIVMSGRegex: Regex =
     """^(@\S+ )?:(\S+)!(\S+)? PRIVMSG #(\S+) :(.+)$""".r // badges, username, _, channel, message

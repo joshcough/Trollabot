@@ -3,7 +3,7 @@ package com.joshcough.trollabot.twitch
 import cats.effect.{Async, IO}
 import cats.implicits.catsSyntaxApply
 import com.joshcough.trollabot.api.Api
-import com.joshcough.trollabot.Configuration
+import com.joshcough.trollabot.{ChannelName, Configuration}
 import doobie.ConnectionIO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -28,10 +28,10 @@ object Chatbot {
 
 case class Chatbot[F[_]: Async: Network](ircConfig: IrcConfig, xa: Transactor[F]) {
 
-  def join(streamName: String): fs2.Stream[Pure, OutgoingMessage] =
+  def join(channelName: ChannelName): fs2.Stream[Pure, OutgoingMessage] =
     fs2.Stream(
-      Irc.join(streamName),
-      Irc.privMsg(streamName, s"Hola mujeres!")
+      Irc.join(channelName),
+      Irc.privMsg(channelName, s"Hola mujeres!")
     )
 
   def stream(api: Api[ConnectionIO])(implicit L: LogIOStrict[F]): fs2.Stream[F, Message] = {
@@ -40,9 +40,9 @@ case class Chatbot[F[_]: Async: Network](ircConfig: IrcConfig, xa: Transactor[F]
 
     Irc(ircConfig, joinMessages)(cm =>
       CommandRunner(Commands.commands).processMessage(cm, api, xa).flatMap {
-        case RespondWith(s)   => fs2.Stream(Irc.privMsg(cm.channel.name, s))
+        case RespondWith(s)   => fs2.Stream(Irc.privMsg(cm.channel, s))
         case Join(streamName) => join(streamName)
-        case Part             => fs2.Stream(Irc.part(cm.channel.name))
+        case Part             => fs2.Stream(Irc.part(cm.channel))
         case LogErr(msg)      => fs2.Stream.eval(L.debug(s"$msg")) *> fs2.Stream.empty
       }
     ).stream.through(fs2.io.stdoutLines())
