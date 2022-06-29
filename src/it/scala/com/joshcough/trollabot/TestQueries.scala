@@ -7,10 +7,9 @@ import doobie.implicits._
 object TestQueries {
 
   val dropStreamsTable: Update0 = sql"drop table if exists streams".update
-
   val dropQuotesTable: Update0 = sql"drop table if exists quotes".update
-
   val dropCountersTable: Update0 = sql"drop table if exists counters".update
+  val dropScoresTable: Update0 = sql"drop table if exists scores".update
 
   val createStreamsTable: Update0 =
     sql"""
@@ -49,17 +48,31 @@ object TestQueries {
         CONSTRAINT unique_counter_channel UNIQUE (channel, name)
       )""".update
 
+  val createScoresTable: Update0 =
+    sql"""
+      CREATE TABLE scores (
+        id SERIAL PRIMARY KEY,
+        channel integer NOT NULL,
+        player1 character varying NULL,
+        player2 character varying NULL,
+        player1_score int NOT NULL,
+        player2_score int NOT NULL,
+        CONSTRAINT unique_score_channel UNIQUE (channel)
+      )""".update
+
   val recreateSchema: ConnectionIO[Int] =
     (
-      dropQuotesTable,
+      dropScoresTable,
       dropCountersTable,
+      dropQuotesTable,
       dropStreamsTable,
       createStreamsTable,
       createQuotesTable,
-      createCountersTable
+      createCountersTable,
+      createScoresTable,
     ) match {
-      case (a, b, c, d, e, f) =>
-        (a.run, b.run, c.run, d.run, e.run, f.run).mapN(_ + _ + _ + _ + _ + _)
+      case (a, b, c, d, e, f, g, h) =>
+        (a.run, b.run, c.run, d.run, e.run, f.run, g.run, h.run).mapN(_ + _ + _ + _ + _ + _ + _ + _)
     }
 
   val deleteAllQuotes: Update0 = sql"delete from quotes".update

@@ -1,7 +1,7 @@
 package com.joshcough.trollabot
 
 import cats.implicits._
-import com.joshcough.trollabot.api.{CountersDb, QuotesDb, StreamsDb}
+import com.joshcough.trollabot.api.{CountersDb, QuotesDb, ScoresDb, StreamsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -107,6 +107,26 @@ class DatabaseSuite extends PostgresContainerSuite {
         assertEquals(c0, housed(0)) &&
         assertEquals(List(c1, c2), List(housed(1), housed(2))) &&
         assertEquals(cs, List(housed(2), brutal(1)))
+    }
+  }
+
+  test("can set scores and players") {
+    withDb {
+      for {
+        s0 <- ScoresDb.getScore(dautChannel)
+        s1 <- ScoresDb.setPlayer1(dautChannel, "daut")
+        s2 <- ScoresDb.setPlayer2(dautChannel, "mbl")
+        s3 <- ScoresDb.setPlayer1Score(dautChannel, 1)
+        s4 <- ScoresDb.setPlayer2Score(dautChannel, 1)
+        s5 <- ScoresDb.setScore(dautChannel, 3, 2)
+        s6 <- ScoresDb.setAll(dautChannel, "viper", 4, "hera", 0)
+      } yield assertEquals(s0, Score(Some(1), 1, None, None, 0, 0)) &&
+        assertEquals(s1, Score(Some(1), 1, Some("daut"), None, 0, 0)) &&
+        assertEquals(s2, Score(Some(1), 1, Some("daut"), Some("mbl"), 0, 0)) &&
+        assertEquals(s3, Score(Some(1), 1, Some("daut"), Some("mbl"), 1, 0)) &&
+        assertEquals(s4, Score(Some(1), 1, Some("daut"), Some("mbl"), 1, 1)) &&
+        assertEquals(s5, Score(Some(1), 1, Some("daut"), Some("mbl"), 3, 2)) &&
+        assertEquals(s6, Score(Some(1), 1, Some("viper"), Some("hera"), 4, 0))
     }
   }
 }
