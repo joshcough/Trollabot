@@ -58,57 +58,40 @@ object ScoreQueries {
        """.update
 
   def setPlayer1(channelName: ChannelName, player1: String): Query0[Score] =
-    sql"""update scores
-          set player1 = $player1
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query
+    updateScores(channelName, fr"set player1 = $player1")
 
   def setPlayer2(channelName: ChannelName, player2: String): Query0[Score] =
-    sql"""update scores
-          set player2 = $player2
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query[Score]
+    updateScores(channelName, fr"set player2 = $player2")
 
   def setPlayer1Score(channelName: ChannelName, player1Score: Int): Query0[Score] =
-    sql"""update scores
-          set player1_score = $player1Score
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query[Score]
+    updateScores(channelName, fr"set player1_score = $player1Score")
 
   def setPlayer2Score(channelName: ChannelName, player2Score: Int): Query0[Score] =
-    sql"""update scores
-          set player2_score = $player2Score
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query[Score]
+    updateScores(channelName, fr"set player2_score = $player2Score")
 
   def setScore(channelName: ChannelName, player1Score: Int, player2Score: Int): Query0[Score] =
-    sql"""update scores
-          set player1_score = $player1Score, player2_score = $player2Score
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query[Score]
+    updateScores(channelName, fr"set player1_score = $player1Score, player2_score = $player2Score")
 
-  def setAll(
-      channelName: ChannelName,
-      player1: String,
-      player1Score: Int,
-      player2: String,
-      player2Score: Int
-  ): Query0[Score] =
-    sql"""update scores
-          set player1 = $player1, player2 = $player2, player1_score = $player1Score, player2_score = $player2Score
-          from streams
-          where scores.channel = streams.id and streams.name = ${channelName.name}
-          returning *""".query[Score]
+  def setAll(channelName: ChannelName,
+              player1: String,
+              player1Score: Int,
+              player2: String,
+              player2Score: Int
+            ): Query0[Score] =
+    updateScores(channelName,
+      fr"""set player1 = $player1, player2 = $player2,
+               player1_score = $player1Score, player2_score = $player2Score""")
 
   def getScore(channelName: ChannelName): Query0[Score] =
     sql"""select * from scores
           join streams on scores.channel = streams.id
           where streams.name = ${channelName.name}""".query[Score]
+
+  def updateScores(channelName: ChannelName, fragment: Fragment): Query0[Score] =
+    (fr"update scores" ++ fragment ++
+      fr"""from streams
+           where scores.channel = streams.id and streams.name = ${channelName.name}
+           returning *""").query[Score]
 }
 
 object ScoresDb extends Scores[ConnectionIO] {

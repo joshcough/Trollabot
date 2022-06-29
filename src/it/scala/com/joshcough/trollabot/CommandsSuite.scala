@@ -84,8 +84,10 @@ class CommandsSuite extends PostgresContainerSuite {
     withInterpreter { interp =>
       for {
         _ <- interp.addQuote(channel, user, "hello").compile.toList
-        response <- interp.interpret(GetExactQuoteAction(channel, 0)).compile.toList
-      } yield assertEquals(response, List(RespondWith("Quote #0: hello")))
+        response1 <- interp.interpret(GetExactQuoteAction(channel, 0)).compile.toList
+        response2 <- interp.interpret(GetRandomQuoteAction(channel)).compile.toList
+      } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
+              assertEquals(response2, List(RespondWith("Quote #0: hello")))
     }
   }
 
