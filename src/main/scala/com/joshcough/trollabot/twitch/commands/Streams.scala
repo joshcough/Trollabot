@@ -29,7 +29,7 @@ object Streams {
     )
 
   val partCommand: BotCommand =
-    BotCommand[Unit, PartAction]("!part", empty, _ => Owner)((c, _, _) => PartAction(c))
+    BotCommand[Unit, PartAction]("!part", empty, _ => Streamer)((c, _, _) => PartAction(c))
 
   val joinCommand: BotCommand =
     BotCommand[ChannelName, JoinAction]("!join", channelNameParser, _ => God)(

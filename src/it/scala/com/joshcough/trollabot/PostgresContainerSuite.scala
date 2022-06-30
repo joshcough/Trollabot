@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.implicits._
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
-import com.joshcough.trollabot.api.{CountersDb, QuotesDb, StreamsDb}
+import com.joshcough.trollabot.api.{CounterName, CountersDb, Quote, QuotesDb, Stream, StreamsDb}
 import doobie.implicits._
 import doobie.{ConnectionIO, Transactor}
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
@@ -15,9 +15,9 @@ import java.sql.DriverManager
 case class QuoteException(msg: String) extends RuntimeException
 
 object QuotesData {
-  val daut: Stream = Stream(None, ChannelName("daut"), joined = false)
-  val jonslow: Stream = Stream(None, ChannelName("jonslow_"), joined = false)
-  val artoftroll: Stream = Stream(None, ChannelName("artofthetroll"), joined = true)
+  val daut: Stream = Stream(ChannelName("daut"), joined = false)
+  val jonslow: Stream = Stream(ChannelName("jonslow_"), joined = false)
+  val artoftroll: Stream = Stream(ChannelName("artofthetroll"), joined = true)
   val streams: List[Stream] = List(daut, jonslow, artoftroll)
 
   val dautQuotes: List[String] = List(

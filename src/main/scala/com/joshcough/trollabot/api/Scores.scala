@@ -2,10 +2,30 @@ package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
 import cats.implicits.catsSyntaxApplicativeId
-import com.joshcough.trollabot.{ChannelName, Score}
+import com.joshcough.trollabot.ChannelName
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+
+case class Score(
+    id: Option[Int],
+    channel: ChannelName,
+    player1: Option[String],
+    player2: Option[String],
+    player1Score: Int,
+    player2Score: Int
+) {
+  def display: String =
+    s"${player1.getOrElse("player")} $player1Score - $player2Score ${player2.getOrElse("opponent")}"
+}
+
+object Score {
+  def empty(channelName: ChannelName) = Score(None, channelName, None, None, 0, 0)
+  implicit val scoreDecoder: Decoder[Score] = deriveDecoder[Score]
+  implicit val scoreEncoder: Encoder[Score] = deriveEncoder[Score]
+}
 
 trait Scores[F[_]] {
   def setPlayer1(channelName: ChannelName, player1: String): F[Score]
@@ -53,9 +73,7 @@ object ScoreQueries {
 
   def insertChannel(channelName: ChannelName): Update0 =
     sql"""insert into scores (channel, player1_score, player2_score)
-          select s.id, 0, 0
-          from streams s where s.name = ${channelName.name}
-       """.update
+         values (${channelName.name}, 0, 0)""".update
 
   def setPlayer1(channelName: ChannelName, player1: String): Query0[Score] =
     updateScores(channelName, fr"set player1 = $player1")
@@ -83,15 +101,10 @@ object ScoreQueries {
                player1_score = $player1Score, player2_score = $player2Score""")
 
   def getScore(channelName: ChannelName): Query0[Score] =
-    sql"""select * from scores
-          join streams on scores.channel = streams.id
-          where streams.name = ${channelName.name}""".query[Score]
+    sql"""select * from scores where channel = ${channelName.name}""".query[Score]
 
   def updateScores(channelName: ChannelName, fragment: Fragment): Query0[Score] =
-    (fr"update scores" ++ fragment ++
-      fr"""from streams
-           where scores.channel = streams.id and streams.name = ${channelName.name}
-           returning *""").query[Score]
+    (fr"update scores" ++ fragment ++ fr"""where channel = ${channelName.name} returning *""").query[Score]
 }
 
 object ScoresDb extends Scores[ConnectionIO] {
@@ -121,7 +134,10 @@ object ScoresDb extends Scores[ConnectionIO] {
       ScoreQueries.setAll(channelName, player1, player1Score, player2, player2Score).unique
     )
   def getScore(channelName: ChannelName): ConnectionIO[Score] =
-    withScore(channelName, ScoreQueries.getScore(channelName).option.map(_.getOrElse(Score.empty)))
+    withScore(
+      channelName,
+      ScoreQueries.getScore(channelName).option.map(_.getOrElse(Score.empty(channelName)))
+    )
 
   def withScore(channelName: ChannelName, action: ConnectionIO[Score]): ConnectionIO[Score] =
     for {

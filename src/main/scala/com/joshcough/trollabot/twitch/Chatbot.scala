@@ -3,7 +3,7 @@ package com.joshcough.trollabot.twitch
 import cats.effect.{Async, IO}
 import cats.implicits.catsSyntaxApply
 import com.joshcough.trollabot.api.Api
-import com.joshcough.trollabot.twitch.commands.{CommandRunner, Commands, Join, LogErr, Part, RespondWith}
+import com.joshcough.trollabot.twitch.commands._
 import com.joshcough.trollabot.{ChannelName, Configuration}
 import doobie.ConnectionIO
 import doobie.implicits._

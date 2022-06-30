@@ -18,8 +18,8 @@ import logstage.strict.LogIOStrict
 
 sealed trait Permission
 case object God extends Permission
-case object Owner extends Permission
-case object ModOnly extends Permission
+case object Streamer extends Permission
+case object Mod extends Permission
 case object Anyone extends Permission
 
 sealed trait Response
@@ -111,10 +111,10 @@ trait BotCommand {
     def isStreamer = chatUser.username.name.toLowerCase == channelName.name.toLowerCase
     def isGod: Boolean = chatUser.username.name.toLowerCase == "artofthetroll"
     permission(a) match {
-      case God     => isGod
-      case Owner   => isStreamer || isGod
-      case ModOnly => chatUser.isMod || isStreamer || isGod
-      case Anyone  => true
+      case God      => isGod
+      case Streamer => isStreamer || isGod
+      case Mod      => chatUser.isMod || isStreamer || isGod
+      case Anyone   => true
     }
   }
 }

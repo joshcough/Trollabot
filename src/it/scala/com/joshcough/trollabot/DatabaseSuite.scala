@@ -1,7 +1,7 @@
 package com.joshcough.trollabot
 
 import cats.implicits._
-import com.joshcough.trollabot.api.{CountersDb, QuotesDb, ScoresDb, StreamsDb}
+import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -79,15 +79,15 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         qs <- QuotesDb.searchQuotes(daut.name, "%man%").compile.toList
         expected = List(
-          AssertableQuote(Some(2),1,"come to my healing spot man!",1,ChatUserName("jc"), deleted = false, None),
-          AssertableQuote(Some(5),4,"close us man!",1,ChatUserName("jc"), deleted = false, None)
+          AssertableQuote(Some(2),1,"come to my healing spot man!",daut.name,ChatUserName("jc"), deleted = false, None),
+          AssertableQuote(Some(5),4,"close us man!",daut.name,ChatUserName("jc"), deleted = false, None)
         )
       } yield assertQuotes(qs, expected)
     }
   }
 
   test("Can create and increment counters") {
-    def c(id: Int, name: CounterName, count: Int) = AssertableCounter(Some(id), name, count, 1, ChatUserName("jc"))
+    def c(id: Int, name: CounterName, count: Int) = AssertableCounter(Some(id), name, count, dautChannel, ChatUserName("jc"))
     def housed(count: Int) = c(1, CounterName("housed"), count)
     def brutal(count: Int) = c(2, CounterName("brutal"), count)
     withDb {
@@ -120,20 +120,20 @@ class DatabaseSuite extends PostgresContainerSuite {
         s4 <- ScoresDb.setPlayer2Score(dautChannel, 1)
         s5 <- ScoresDb.setScore(dautChannel, 3, 2)
         s6 <- ScoresDb.setAll(dautChannel, "viper", 4, "hera", 0)
-      } yield assertEquals(s0, Score(Some(1), 1, None, None, 0, 0)) &&
-        assertEquals(s1, Score(Some(1), 1, Some("daut"), None, 0, 0)) &&
-        assertEquals(s2, Score(Some(1), 1, Some("daut"), Some("mbl"), 0, 0)) &&
-        assertEquals(s3, Score(Some(1), 1, Some("daut"), Some("mbl"), 1, 0)) &&
-        assertEquals(s4, Score(Some(1), 1, Some("daut"), Some("mbl"), 1, 1)) &&
-        assertEquals(s5, Score(Some(1), 1, Some("daut"), Some("mbl"), 3, 2)) &&
-        assertEquals(s6, Score(Some(1), 1, Some("viper"), Some("hera"), 4, 0))
+      } yield assertEquals(s0, Score(Some(1), dautChannel, None, None, 0, 0)) &&
+        assertEquals(s1, Score(Some(1), dautChannel, Some("daut"), None, 0, 0)) &&
+        assertEquals(s2, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 0, 0)) &&
+        assertEquals(s3, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 1, 0)) &&
+        assertEquals(s4, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 1, 1)) &&
+        assertEquals(s5, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 3, 2)) &&
+        assertEquals(s6, Score(Some(1), dautChannel, Some("viper"), Some("hera"), 4, 0))
     }
   }
 }
 
-case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: Int,
+case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: ChannelName,
                            addedBy: ChatUserName,  deleted: Boolean, deletedBy: Option[ChatUserName])
-case class AssertableCounter(id: Option[Int], name: CounterName, count: Int, channel: Int, addedBy: ChatUserName)
+case class AssertableCounter(id: Option[Int], name: CounterName, count: Int, channel: ChannelName, addedBy: ChatUserName)
 
 object AssertableQuote {
   def apply(q: Quote): AssertableQuote =

@@ -64,7 +64,7 @@ object Scores {
     def perms(a: ScoreAction): Permission =
       a.scoreArg match {
         case GetScore => Anyone
-        case _        => ModOnly
+        case _        => Mod
       }
     BotCommand[ScoreArg, ScoreAction]("!score", scoreParser, perms)((channelName, _, scoreArg) =>
       ScoreAction(channelName, scoreArg)
@@ -72,12 +72,12 @@ object Scores {
   }
 
   val playerCommand: BotCommand =
-    BotCommand[String, SetPlayerAction]("!player", anyStringAs("player_name"), _ => ModOnly)(
+    BotCommand[String, SetPlayerAction]("!player", anyStringAs("player_name"), _ => Mod)(
       (channelName, _, name) => SetPlayerAction(channelName, name)
     )
 
   val opponentCommand: BotCommand =
-    BotCommand[String, SetOpponentAction]("!opponent", anyStringAs("player_name"), _ => ModOnly)(
+    BotCommand[String, SetOpponentAction]("!opponent", anyStringAs("player_name"), _ => Mod)(
       (channelName, _, name) => SetOpponentAction(channelName, name)
     )
 

@@ -1,6 +1,6 @@
 package com.joshcough.trollabot
 
-import com.joshcough.trollabot.api.Api
+import com.joshcough.trollabot.api.{Api, CounterName}
 import com.joshcough.trollabot.twitch.commands._
 import com.joshcough.trollabot.twitch.commands.Quotes._
 import com.joshcough.trollabot.twitch.commands.Scores._
@@ -120,9 +120,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("print streams command prints streams") {
     withDb {
       val expectedText =
-        """{"id":1,"name":{"name":"daut"},"joined":false},
-          |{"id":2,"name":{"name":"jonslow_"},"joined":false},
-          |{"id":3,"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
+        """{"name":{"name":"daut"},"joined":false},
+          |{"name":{"name":"jonslow_"},"joined":false},
+          |{"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
       for {
         response <- PrintStreamsAction.run(api).compile.toList
       } yield assertEquals(response, List(RespondWith(expectedText)))

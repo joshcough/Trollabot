@@ -14,8 +14,7 @@ object TestQueries {
   val createStreamsTable: Update0 =
     sql"""
       CREATE TABLE streams (
-        id SERIAL PRIMARY KEY,
-        name character varying NOT NULL,
+        name character varying NOT NULL PRIMARY KEY,
         joined boolean NOT NULL,
         CONSTRAINT unique_stream_name UNIQUE (name)
       )""".update
@@ -26,7 +25,7 @@ object TestQueries {
         id SERIAL PRIMARY KEY,
         qid integer NOT NULL,
         text character varying NOT NULL,
-        channel int NOT NULL references streams(id),
+        channel text NOT NULL references streams(name),
         added_by text NOT NULL,
         added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         deleted bool NOT NULL DEFAULT false,
@@ -42,7 +41,7 @@ object TestQueries {
         id SERIAL PRIMARY KEY,
         name character varying NOT NULL,
         current_count int NOT NULL,
-        channel integer NOT NULL,
+        channel text NOT NULL references streams(name),
         added_by text NOT NULL,
         added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT unique_counter_channel UNIQUE (channel, name)
@@ -52,7 +51,7 @@ object TestQueries {
     sql"""
       CREATE TABLE scores (
         id SERIAL PRIMARY KEY,
-        channel integer NOT NULL,
+        channel text NOT NULL references streams(name),
         player1 character varying NULL,
         player2 character varying NULL,
         player1_score int NOT NULL,

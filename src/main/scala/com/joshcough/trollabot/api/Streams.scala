@@ -3,10 +3,20 @@ package com.joshcough.trollabot.api
 import cats.Monad
 import cats.effect.MonadCancelThrow
 import cats.implicits._
-import com.joshcough.trollabot.{ChannelName, Stream}
+import com.joshcough.trollabot.ChannelName
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
+
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+
+case class Stream(name: ChannelName, joined: Boolean)
+
+object Stream {
+  implicit val streamDecoder: Decoder[Stream] = deriveDecoder[Stream]
+  implicit val streamEncoder: Encoder[Stream] = deriveEncoder[Stream]
+}
 
 abstract class Streams[F[_]: Monad] {
   def getStreams: fs2.Stream[F, Stream]
@@ -49,11 +59,8 @@ object StreamQueries {
   val getAllStreams: Query0[Stream] =
     sql"select * from streams".query[Stream]
 
-  def getStreamId(channelName: ChannelName): Query0[Int] =
-    sql"select id from streams where name = ${channelName.name}".query[Int]
-
   def doesStreamExist(channelName: ChannelName): Query0[Boolean] =
-    sql"select exists(select id from streams where name = ${channelName.name})".query[Boolean]
+    sql"select exists(select true from streams where name = ${channelName.name})".query[Boolean]
 
   // TODO: what if stream already has an ID? thats bad right we need to catch that, because it shouldn't.
   def insertStream(s: Stream): Update0 =
@@ -79,7 +86,7 @@ object StreamsDb extends Streams[ConnectionIO] {
   def markJoined(channelName: ChannelName): ConnectionIO[Boolean] =
     StreamQueries.joinStream(channelName).run.map(_ > 0)
   def insertStream(channelName: ChannelName): ConnectionIO[Boolean] =
-    StreamQueries.insertStream(Stream(None, channelName, joined = false)).run.map(_ > 0)
+    StreamQueries.insertStream(Stream(channelName, joined = false)).run.map(_ > 0)
   def doesStreamExist(channelName: ChannelName): ConnectionIO[Boolean] =
     StreamQueries.doesStreamExist(channelName).unique
   def getAllStreams: fs2.Stream[ConnectionIO, Stream] = StreamQueries.getAllStreams.stream

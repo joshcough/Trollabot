@@ -1,10 +1,38 @@
 package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
-import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, Counter, CounterName}
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, TimestampInstances}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.{Codec, Decoder, Encoder, derivation}
+import logstage.LogstageCodec
+import logstage.circe.LogstageCirceCodec
+
+import java.sql.Timestamp
+import TimestampInstances._
+
+case class CounterName(name: String) extends AnyVal
+
+object CounterName {
+  implicit val circeCodec: Codec[CounterName] = derivation.deriveCodec[CounterName]
+  implicit val logstageCodec: LogstageCodec[CounterName] = LogstageCirceCodec.derived[CounterName]
+}
+
+case class Counter(
+    id: Option[Int],
+    name: CounterName,
+    count: Int,
+    channel: ChannelName,
+    addedBy: ChatUserName,
+    addedAt: Timestamp
+)
+
+object Counter {
+  implicit val counterDecoder: Decoder[Counter] = deriveDecoder[Counter]
+  implicit val counterEncoder: Encoder[Counter] = deriveEncoder[Counter]
+}
 
 trait Counters[F[_]] {
   def getCounters(channelName: ChannelName): fs2.Stream[F, Counter]
@@ -40,38 +68,27 @@ object CounterQueries {
 
   import doobie.implicits.javasql._
 
-  def countersJoinStreams(counterName: CounterName, channelName: ChannelName): Fragment =
-    fr"""
-      from counters c
-      join streams s on s.id = c.channel
-      where s.name = ${channelName.name} and c.name = ${counterName.name}
-      """
-
   def insertCounter(
       counterName: CounterName,
       username: ChatUserName,
       channelName: ChannelName
   ): Query0[Counter] =
     sql"""insert into counters (name, current_count, channel, added_by)
-          select ${counterName.name}, 0, s.id, ${username.name}
-          from streams s where s.name = ${channelName.name}
+          values(${counterName.name}, 0, ${channelName.name}, ${username.name})
           returning *""".query[Counter]
 
   def counterValue(counterName: CounterName, channelName: ChannelName): Query0[Int] =
-    (sql"select c.current_count" ++ countersJoinStreams(counterName, channelName)).query[Int]
+    sql"""select current_count from counters
+          where channel = ${channelName.name} and name = ${counterName.name}""".query[Int]
 
   def selectAllCountersForStream(channelName: ChannelName): Query0[Counter] =
-    sql"""select c.* from counters c join streams s
-          on s.id = c.channel
-          where s.name = ${channelName.name}""".query[Counter]
+    sql"""select * from counters where channel = ${channelName.name}""".query[Counter]
 
   def incrementCounter(counterName: CounterName, channelName: ChannelName): Query0[Counter] =
-    sql"""update counters c
+    sql"""update counters
           set current_count = current_count + 1
-          from streams s
-          where c.channel = s.id and c.name = ${counterName.name} and s.name = ${channelName.name}
+          where channel = ${channelName.name} and name = ${counterName.name}
           returning *""".query[Counter]
-
 }
 
 object CountersDb extends Counters[ConnectionIO] {

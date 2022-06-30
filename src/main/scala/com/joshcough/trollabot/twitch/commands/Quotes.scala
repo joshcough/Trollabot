@@ -3,8 +3,8 @@ package com.joshcough.trollabot.twitch.commands
 import cats.Monad
 import cats.implicits._
 import com.joshcough.trollabot.ParserCombinators.{int, slurp}
-import com.joshcough.trollabot.api.Api
-import com.joshcough.trollabot.{ChannelName, ChatUser, Quote}
+import com.joshcough.trollabot.api.{Api, Quote}
+import com.joshcough.trollabot.{ChannelName, ChatUser}
 import fs2.{Pure, Stream}
 
 object Quotes {
@@ -53,12 +53,12 @@ object Quotes {
     )
 
   val addQuoteCommand: BotCommand =
-    BotCommand[String, AddQuoteAction]("!addQuote", slurp, _ => ModOnly)(
+    BotCommand[String, AddQuoteAction]("!addQuote", slurp, _ => Mod)(
       (channelName, chatUser, text) => AddQuoteAction(channelName, chatUser, text)
     )
 
   val delQuoteCommand: BotCommand =
-    BotCommand[Int, DelQuoteAction]("!delQuote", int, _ => ModOnly)((channelName, _, n) =>
+    BotCommand[Int, DelQuoteAction]("!delQuote", int, _ => Mod)((channelName, _, n) =>
       DelQuoteAction(channelName, n)
     )
 

@@ -3,8 +3,8 @@ package com.joshcough.trollabot.twitch.commands
 import cats.implicits._
 import cats.Monad
 import com.joshcough.trollabot.ParserCombinators._
-import com.joshcough.trollabot.api.Api
-import com.joshcough.trollabot.{ChannelName, ChatUser, CounterName}
+import com.joshcough.trollabot.api.{Api, CounterName}
+import com.joshcough.trollabot.{ChannelName, ChatUser}
 import fs2.{Pure, Stream}
 
 object Counters {

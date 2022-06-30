@@ -2,7 +2,8 @@ package com.joshcough.trollabot
 
 import cats.effect.IO
 import cats.implicits._
-import com.joshcough.trollabot.api.{Counters, Quotes}
+import com.joshcough.trollabot.QuotesData.daut
+import com.joshcough.trollabot.api.{CounterName, Counters, Quotes}
 import com.joshcough.trollabot.web.Routes
 import doobie.Transactor
 import doobie.implicits._
@@ -17,11 +18,11 @@ import org.http4s.{EntityDecoder, Request}
 
 class WebSuite extends PostgresContainerSuite {
 
-  val q2: AssertableQuote = AssertableQuote(Some(2), 1, "come to my healing spot man!", 1, ChatUserName("jc"), deleted = false, None)
-  val q5: AssertableQuote = AssertableQuote(Some(5), 4, "close us man!", 1, ChatUserName("jc"), deleted = false, None)
+  val q2: AssertableQuote = AssertableQuote(Some(2), 1, "come to my healing spot man!", daut.name, ChatUserName("jc"), deleted = false, None)
+  val q5: AssertableQuote = AssertableQuote(Some(5), 4, "close us man!", daut.name, ChatUserName("jc"), deleted = false, None)
 
-  val c1: AssertableCounter = AssertableCounter(Some(1), CounterName("housed"), 2, 1, ChatUserName("jc"))
-  val c2: AssertableCounter = AssertableCounter(Some(2), CounterName("brutal"), 0, 1, ChatUserName("jc"))
+  val c1: AssertableCounter = AssertableCounter(Some(1), CounterName("housed"), 2, dautChannel, ChatUserName("jc"))
+  val c2: AssertableCounter = AssertableCounter(Some(2), CounterName("brutal"), 0, dautChannel, ChatUserName("jc"))
 
   test("/quote returns a quote") {
     withData { xa =>

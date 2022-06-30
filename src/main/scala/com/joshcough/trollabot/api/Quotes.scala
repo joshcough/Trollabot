@@ -1,11 +1,37 @@
 package com.joshcough.trollabot.api
 
+import cats.Show
 import cats.effect.MonadCancelThrow
 import cats.implicits._
-import com.joshcough.trollabot.{ChannelName, ChatUserName, Quote}
+import com.joshcough.trollabot.{ChannelName, ChatUserName}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+
+import java.sql.Timestamp
+
+case class Quote(
+    id: Option[Int],
+    qid: Int,
+    text: String,
+    channel: ChannelName,
+    addedBy: ChatUserName,
+    addedAt: Timestamp,
+    deleted: Boolean,
+    deletedBy: Option[ChatUserName],
+    deletedAt: Option[Timestamp]
+) {
+  def display: String = s"Quote #$qid: $text"
+}
+
+object Quote {
+  import com.joshcough.trollabot.TimestampInstances._
+  implicit val quoteDecoder: Decoder[Quote] = deriveDecoder[Quote]
+  implicit val quoteEncoder: Encoder[Quote] = deriveEncoder[Quote]
+  implicit val quoteShow: Show[Quote] = Show.fromToString
+}
 
 trait Quotes[F[_]] {
   def getQuote(channelName: ChannelName, qid: Int): F[Option[Quote]]
@@ -73,19 +99,13 @@ object QuoteQueries {
 
   import doobie.implicits.javasql._
 
-  def quotesJoinStreams(channelName: ChannelName): Fragment =
-    fr"""
-      from quotes q
-      join streams s on s.id = q.channel
-      where s.name = ${channelName.name}
-      """
-
   def getRandomQuoteForStream(channelName: ChannelName): Query0[Quote] =
-    (fr"select q.*" ++ quotesJoinStreams(channelName) ++ fr"order by random() limit 1").query[Quote]
+    fr"select q.* from quotes q where q.channel = ${channelName.name} order by random() limit 1"
+      .query[Quote]
 
   val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
   def countQuotesInStream(channelName: ChannelName): Query0[Int] =
-    (fr"select count(*)" ++ quotesJoinStreams(channelName)).query[Int]
+    fr"select count(*) from quotes q where q.channel = ${channelName.name}".query[Int]
 
   def getAllQuotesForStream(channelName: ChannelName): Query0[Quote] =
     selectQuotes(channelName).query[Quote]
@@ -105,17 +125,14 @@ object QuoteQueries {
     (selectQuotes(channelName) ++ fr"and q.text = $text").query[Quote]
 
   def selectQuotes(channelName: ChannelName): Fragment =
-    fr"select q.*" ++ quotesJoinStreams(channelName)
+    fr"select q.* from quotes q where q.channel = ${channelName.name}"
 
   // TODO: instead of deleting - mark as deleted, by whom and when
   def deleteQuote(channelName: ChannelName, qid: Int): Update0 =
-    sql"""delete from quotes q
-          using streams s
-          where s.id = q.channel and s.name = ${channelName.name} and q.qid = $qid
-       """.update
+    sql"""delete from quotes q where q.channel = ${channelName.name} and q.qid = $qid""".update
 
   def nextQidForChannel_(channelName: ChannelName): Fragment =
-    fr"select coalesce(max(q.qid) + 1, 0)" ++ quotesJoinStreams(channelName)
+    fr"select coalesce(max(q.qid) + 1, 0) from quotes q where q.channel = ${channelName.name}"
 
   def nextQidForChannel(channelName: ChannelName): Query0[Int] =
     nextQidForChannel_(channelName).query[Int]
@@ -125,11 +142,7 @@ object QuoteQueries {
     (fr"insert into quotes (qid, text, channel, added_by)" ++
       fr"select" ++
       fr"(" ++ nextQidForChannel_(channelName) ++ fr")," ++
-      fr"""$text,
-             s.id,
-             ${username.name}
-             from streams s where s.name = ${channelName.name}
-             returning *""").query[Quote]
+      fr"""$text, ${channelName.name}, ${username.name} returning *""").query[Quote]
 
 }
 
