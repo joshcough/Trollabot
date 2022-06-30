@@ -1,18 +1,17 @@
-package com.joshcough.trollabot.twitch
+package com.joshcough.trollabot.twitch.commands
 
-import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser}
-import com.joshcough.trollabot.ParserCombinators._
+import cats.Monad
 import cats.effect.MonadCancelThrow
 import cats.implicits._
-import com.joshcough.trollabot.api.{CounterCommands, QuoteCommands, ScoreCommands, StreamCommands}
-import doobie.ConnectionIO
-import doobie.implicits.toDoobieStreamOps
-import doobie.util.transactor.Transactor
+import com.joshcough.trollabot.ParserCombinators._
+import com.joshcough.trollabot.api.Api
+import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser}
+import doobie.implicits._
+import doobie.{ConnectionIO, Transactor}
 import fs2.Stream
-import io.circe.{Codec, Decoder, Encoder}
-import io.circe.derivation
 import io.circe.generic.auto._
 import io.circe.syntax._
+import io.circe.{Codec, Decoder, Encoder, derivation}
 import logstage.LogstageCodec
 import logstage.circe.LogstageCirceCodec
 import logstage.strict.LogIOStrict
@@ -65,23 +64,24 @@ object Join {
 }
 
 trait Action {
-  def run: Stream[ConnectionIO, Response]
+  def run[F[_]: Monad](api: Api[F]): Stream[F, Response]
 }
 
 case class HelpAction(commandName: String) extends Action {
-  override def run: Stream[ConnectionIO, Response] = help(commandName, Commands.commands)
+  override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
+    help(commandName, Commands.commands)
 
-  def help(
+  def help[F[_]](
       commandName: String,
       knownCommands: Map[String, BotCommand]
-  ): Stream[ConnectionIO, Response] =
+  ): Stream[F, Response] =
     Stream.emit(RespondWith(knownCommands.get(commandName) match {
       case None    => s"Unknown command: $commandName"
       case Some(c) => c.toString
     }))
 }
 case object BuildInfoAction extends Action {
-  override def run: Stream[ConnectionIO, Response] =
+  override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
     Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 }
 
@@ -140,6 +140,7 @@ object CommandInterpreter {
       msg: ChatMessage,
       cmd: BotCommand,
       args: String,
+      api: Api[ConnectionIO],
       xa: Transactor[F],
       L: LogIOStrict[F]
   ): Either[String, Stream[F, Response]] =
@@ -147,7 +148,7 @@ object CommandInterpreter {
       val e = s"{cmdName: ${cmd.name}, user: ${msg.user}, channel: ${msg.channel}, action: $action}"
       if (cmd.hasPermssion(msg.channel, msg.user, action)) for {
         _ <- Stream.eval(L.debug(s"executing $e"))
-        res <- action.run.transact(xa)
+        res <- action.run(api).transact(xa)
         _ <- Stream.eval(L.debug(s"done executing $e"))
       } yield res
       // user doesnt' have permission to execute this command, so just do nothing.
@@ -181,10 +182,10 @@ object BuiltinCommands {
 
 case object Commands {
   val commands: Map[String, BotCommand] =
-    (StreamCommands.streamCommands
-      ++ QuoteCommands.quoteCommands
-      ++ CounterCommands.counterCommands
-      ++ ScoreCommands.scoreCommands
+    (Streams.streamCommands
+      ++ Quotes.quoteCommands
+      ++ Counters.counterCommands
+      ++ Scores.scoreCommands
       ++ BuiltinCommands.builtinCommands).map(c => (c.name, c)).toMap
 }
 
@@ -195,16 +196,21 @@ case class CommandRunner(commands: Map[String, BotCommand]) {
     commands.get(commandName).map((_, args))
   }
 
-  def processMessage[F[_]: MonadCancelThrow](msg: ChatMessage, xa: Transactor[F])(implicit
+  def processMessage[F[_]: MonadCancelThrow](
+      msg: ChatMessage,
+      api: Api[ConnectionIO],
+      xa: Transactor[F]
+  )(implicit
       L: LogIOStrict[F]
-  ): Stream[F, Response] =
+  ): Stream[F, Response] = {
     parseMessageAndFindCommand(msg) match {
       case Some((cmd, args)) =>
-        CommandInterpreter.interpret(msg, cmd, args, xa, L) match {
+        CommandInterpreter.interpret(msg, cmd, args, api, xa, L) match {
           case Left(_)  => Stream(RespondWith(cmd.help))
           case Right(r) => r
         }
       // no command for this chat message, so just do nothing.
       case None => Stream.empty
     }
+  }
 }

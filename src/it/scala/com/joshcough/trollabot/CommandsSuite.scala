@@ -1,11 +1,11 @@
 package com.joshcough.trollabot
 
-import com.joshcough.trollabot.api.CounterCommands.{AddCounterAction, IncCounterAction}
-import com.joshcough.trollabot.api.QuoteCommands
-import com.joshcough.trollabot.api.QuoteCommands.{AddQuoteAction, DelQuoteAction, GetExactQuoteAction, GetRandomQuoteAction, SearchQuotesAction}
-import com.joshcough.trollabot.api.ScoreCommands.{GetScore, ScoreAction, SetAll, SetOpponentAction, SetPlayerAction, SetScore}
-import com.joshcough.trollabot.api.StreamCommands.{JoinAction, PartAction, PrintStreamsAction}
-import com.joshcough.trollabot.twitch._
+import com.joshcough.trollabot.api.Api
+import com.joshcough.trollabot.twitch.commands._
+import com.joshcough.trollabot.twitch.commands.Quotes._
+import com.joshcough.trollabot.twitch.commands.Scores._
+import com.joshcough.trollabot.twitch.commands.Streams._
+import com.joshcough.trollabot.twitch.commands.Counters._
 
 class CommandsSuite extends PostgresContainerSuite {
 
@@ -46,10 +46,12 @@ class CommandsSuite extends PostgresContainerSuite {
 
   val interp = CommandInterpreter
 
+  val api = Api.db
+
   test("join command joins") {
     withDb {
       for {
-        response <- JoinAction(channel).run.compile.toList
+        response <- JoinAction(channel).run(api).compile.toList
       } yield assertEquals(response, List(Join(channel), RespondWith("Joining artofthetroll!")))
     }
   }
@@ -57,7 +59,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("part command parts") {
     withDb {
       for {
-        response <- PartAction(channel).run.compile.toList
+        response <- PartAction(channel).run(api).compile.toList
       } yield assertEquals(response, List(RespondWith("Goodbye cruel world!"), Part))
     }
   }
@@ -65,7 +67,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("add quote command adds") {
     withDb {
       for {
-        response <- AddQuoteAction(channel, user, "hello").run.compile.toList
+        response <- AddQuoteAction(channel, user, "hello").run(api).compile.toList
       } yield assertEquals(response, List(RespondWith("Quote #0: hello")))
     }
   }
@@ -73,8 +75,8 @@ class CommandsSuite extends PostgresContainerSuite {
   test("can't add the same quote twice") {
     withDb {
       for {
-        response1 <- AddQuoteAction(channel, user, "hello").run.compile.toList
-        response2 <- AddQuoteAction(channel, user, "hello").run.compile.toList
+        response1 <- AddQuoteAction(channel, user, "hello").run(api).compile.toList
+        response2 <- AddQuoteAction(channel, user, "hello").run(api).compile.toList
       } yield
         assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
         assertEquals(response2, List(RespondWith("That quote already exists man! It's #0")))
@@ -84,9 +86,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("get quote command gets quote") {
     withDb {
       for {
-        _ <- QuoteCommands.addQuote(channel, user, "hello").compile.toList
-        response1 <- GetExactQuoteAction(channel, 0).run.compile.toList
-        response2 <- GetRandomQuoteAction(channel).run.compile.toList
+        _ <- Quotes.addQuote(api)(channel, user, "hello").compile.toList
+        response1 <- GetExactQuoteAction(channel, 0).run(api).compile.toList
+        response2 <- GetRandomQuoteAction(channel).run(api).compile.toList
       } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
               assertEquals(response2, List(RespondWith("Quote #0: hello")))
     }
@@ -95,9 +97,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("search command gets quote") {
     withDb {
       for {
-        _ <- QuoteCommands.addQuote(channel, user, "hello").compile.toList
-        response1 <- SearchQuotesAction(channel, "%hell%").run.compile.toList
-        response2 <- SearchQuotesAction(channel, "%zzz%").run.compile.toList
+        _ <- Quotes.addQuote(api)(channel, user, "hello").compile.toList
+        response1 <- SearchQuotesAction(channel, "%hell%").run(api).compile.toList
+        response2 <- SearchQuotesAction(channel, "%zzz%").run(api).compile.toList
       } yield assertEquals(response1, List(RespondWith("Quote #0: hello"))) &&
               assertEquals(response2, List(RespondWith("Couldn't find any quotes that match that.")))
     }
@@ -106,9 +108,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("delete quote command deletes quote") {
     withDb {
       for {
-        _ <- QuoteCommands.addQuote(channel, user, "hello").compile.toList
-        deleteResponse <- DelQuoteAction(channel, 0).run.compile.toList
-        getResponse <- QuoteCommands.getExactQuote(channel, 0).compile.toList
+        _ <- Quotes.addQuote(api)(channel, user, "hello").compile.toList
+        deleteResponse <- DelQuoteAction(channel, 0).run(api).compile.toList
+        getResponse <- Quotes.getExactQuote(api)(channel, 0).compile.toList
       } yield
           assertEquals(deleteResponse, List(RespondWith("Ok I deleted it."))) &&
           assertEquals(getResponse, List(RespondWith("I couldn't find quote #0, man.")))
@@ -122,7 +124,7 @@ class CommandsSuite extends PostgresContainerSuite {
           |{"id":2,"name":{"name":"jonslow_"},"joined":false},
           |{"id":3,"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
       for {
-        response <- PrintStreamsAction.run.compile.toList
+        response <- PrintStreamsAction.run(api).compile.toList
       } yield assertEquals(response, List(RespondWith(expectedText)))
     }
   }
@@ -130,9 +132,9 @@ class CommandsSuite extends PostgresContainerSuite {
   test("add counter command adds counter") {
     withDb {
       for {
-        response0 <- AddCounterAction(channel, user, CounterName("my-counter")).run.compile.toList
-        response1 <- IncCounterAction(channel, CounterName("my-counter")).run.compile.toList
-        response2 <- IncCounterAction(channel, CounterName("my-counter")).run.compile.toList
+        response0 <- AddCounterAction(channel, user, CounterName("my-counter")).run(api).compile.toList
+        response1 <- IncCounterAction(channel, CounterName("my-counter")).run(api).compile.toList
+        response2 <- IncCounterAction(channel, CounterName("my-counter")).run(api).compile.toList
         responses = response0 ++ response1 ++ response2
       } yield assertEquals(
         responses,
@@ -148,7 +150,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("help command helps")(
     withDb {
       for {
-        response <- HelpAction("!quote").run.compile.toList
+        response <- HelpAction("!quote").run(api).compile.toList
       } yield assertEquals(response, List(RespondWith("!quote optional(int)")))
     }
   )
@@ -156,11 +158,11 @@ class CommandsSuite extends PostgresContainerSuite {
   test("can set score/player/opponent")(
     withDb {
       for {
-        r0 <- ScoreAction(channel, GetScore).run.compile.toList
-        r1 <- SetPlayerAction(channel, "daut").run.compile.toList
-        r2 <- SetOpponentAction(channel, "artofthetroll").run.compile.toList
-        r3 <- ScoreAction(channel, SetScore(0, 4)).run.compile.toList
-        r4 <- ScoreAction(channel, SetAll("viper", "hera", 4, 0)).run.compile.toList
+        r0 <- ScoreAction(channel, GetScore).run(api).compile.toList
+        r1 <- SetPlayerAction(channel, "daut").run(api).compile.toList
+        r2 <- SetOpponentAction(channel, "artofthetroll").run(api).compile.toList
+        r3 <- ScoreAction(channel, SetScore(0, 4)).run(api).compile.toList
+        r4 <- ScoreAction(channel, SetAll("viper", "hera", 4, 0)).run(api).compile.toList
       } yield
         assertEquals(r0, List(RespondWith("player 0 - 0 opponent"))) &&
           assertEquals(r1, List(RespondWith("daut 0 - 0 opponent"))) &&

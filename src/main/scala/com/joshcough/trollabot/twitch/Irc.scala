@@ -4,6 +4,7 @@ import cats.Show
 import cats.effect.kernel.Async
 import cats.implicits._
 import com.comcast.ip4s._
+import com.joshcough.trollabot.twitch.commands.ChatMessage
 import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
 import fs2.io.net.tls.TLSSocket
 import fs2.{INothing, Pipe, Stream, text}

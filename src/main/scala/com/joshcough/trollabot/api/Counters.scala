@@ -1,13 +1,10 @@
 package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
-import com.joshcough.trollabot.ParserCombinators._
-import com.joshcough.trollabot.twitch._
 import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, Counter, CounterName}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import fs2.{Pure, Stream}
 
 trait Counters[F[_]] {
   def getCounters(channelName: ChannelName): fs2.Stream[F, Counter]
@@ -90,74 +87,4 @@ object CountersDb extends Counters[ConnectionIO] {
 
   def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Counter] =
     CounterQueries.incrementCounter(counterName, channelName).unique
-}
-
-object CounterCommands {
-
-  lazy val counterCommands: List[BotCommand] = List(addCounterCommand, incCounterCommand)
-
-  // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
-  case class AddCounterAction(
-      channelName: ChannelName,
-      chatUser: ChatUser,
-      counterName: CounterName
-  ) extends Action {
-    override def run: Stream[ConnectionIO, Response] =
-      addCounter(channelName, chatUser, counterName)
-  }
-  case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action {
-    override def run: Stream[ConnectionIO, Response] = incCounter(channelName, counterName)
-  }
-
-  val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
-
-  val addCounterCommand: BotCommand =
-    BotCommand[CounterName, AddCounterAction]("!addCounter", counterNameParser, const(God))(
-      (channelName, chatUser, name) => AddCounterAction(channelName, chatUser, name)
-    )
-
-  val incCounterCommand: BotCommand =
-    BotCommand[CounterName, IncCounterAction]("!inc", counterNameParser, const(Anyone))(
-      (channelName, _, name) => IncCounterAction(channelName, name)
-    )
-
-  def addCounter(
-      channelName: ChannelName,
-      chatUser: ChatUser,
-      counterName: CounterName
-  ): Stream[ConnectionIO, Response] =
-    Stream
-      .eval(
-        CountersDb
-          .insertCounter(channelName, chatUser, counterName)
-          .map(c => RespondWith(s"Ok I added it. ${c.name.name}:${c.count}"))
-      )
-      .handleErrorWith { e =>
-        errHandler(e, s"I couldn't add counter for ${counterName.name} stream ${channelName.name}")
-      }
-
-  def incCounter(
-      channelName: ChannelName,
-      counterName: CounterName
-  ): Stream[ConnectionIO, Response] =
-    Stream
-      .eval(
-        CountersDb
-          .incrementCounter(channelName, counterName)
-          .map(c => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}"))
-      )
-      .handleErrorWith { e =>
-        errHandler(
-          e,
-          s"I couldn't increment counter for ${counterName.name} stream ${channelName.name}"
-        )
-      }
-
-  def const[A, B](b: B): A => B = _ => b
-
-  private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
-
-  private def errHandler(e: Throwable, msg: String): Stream[Pure, Response] =
-    Stream.emits(List[Response](RespondWith(err(msg)), LogErr(e)))
-
 }
