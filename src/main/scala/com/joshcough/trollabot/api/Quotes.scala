@@ -2,10 +2,13 @@ package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
 import cats.implicits._
-import com.joshcough.trollabot.{ChannelName, ChatUserName, Quote}
+import com.joshcough.trollabot.ParserCombinators.{int, slurp}
+import com.joshcough.trollabot.twitch._
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, Quote}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
+import fs2.{Pure, Stream}
 
 trait Quotes[F[_]] {
   def getQuote(channelName: ChannelName, qid: Int): F[Option[Quote]]
@@ -169,4 +172,108 @@ object QuotesDb extends Quotes[ConnectionIO] {
 
   def countQuotesInStream(channelName: ChannelName): ConnectionIO[Count] =
     QuoteQueries.countQuotesInStream(channelName).unique.map(Count(_))
+}
+
+object QuoteCommands {
+
+  lazy val quoteCommands: List[BotCommand] = List(
+    getQuoteCommand,
+    searchQuotesCommand,
+    addQuoteCommand,
+    delQuoteCommand
+  )
+
+  val quotes = QuotesDb
+
+  trait QuoteAction extends Action
+
+  sealed trait GetQuoteAction extends QuoteAction
+  case class GetExactQuoteAction(channelName: ChannelName, qid: Int) extends GetQuoteAction {
+    override def run: Stream[ConnectionIO, Response] = getExactQuote(channelName, qid)
+  }
+  case class GetRandomQuoteAction(channelName: ChannelName) extends GetQuoteAction {
+    override def run: Stream[ConnectionIO, Response] = getRandomQuote(channelName)
+  }
+  case class SearchQuotesAction(channelName: ChannelName, like: String) extends QuoteAction {
+    override def run: Stream[ConnectionIO, Response] = search(channelName, like)
+  }
+  case class AddQuoteAction(channelName: ChannelName, chatUser: ChatUser, text: String)
+      extends QuoteAction {
+    override def run: Stream[ConnectionIO, Response] = addQuote(channelName, chatUser, text)
+  }
+  case class DelQuoteAction(channelName: ChannelName, n: Int) extends QuoteAction {
+    override def run: Stream[ConnectionIO, Response] = deleteQuote(channelName, n)
+  }
+
+  val getQuoteCommand: BotCommand =
+    BotCommand[Option[Int], GetQuoteAction]("!quote", int.?, _ => Anyone)((channelName, _, mn) =>
+      mn.fold[GetQuoteAction](GetRandomQuoteAction(channelName))(n =>
+        GetExactQuoteAction(channelName, n)
+      )
+    )
+
+  val searchQuotesCommand: BotCommand =
+    BotCommand[String, SearchQuotesAction]("!search", slurp, _ => Anyone)((channelName, _, like) =>
+      SearchQuotesAction(channelName, like)
+    )
+
+  val addQuoteCommand: BotCommand =
+    BotCommand[String, AddQuoteAction]("!addQuote", slurp, _ => ModOnly)(
+      (channelName, chatUser, text) => AddQuoteAction(channelName, chatUser, text)
+    )
+
+  val delQuoteCommand: BotCommand =
+    BotCommand[Int, DelQuoteAction]("!delQuote", int, _ => ModOnly)((channelName, _, n) =>
+      DelQuoteAction(channelName, n)
+    )
+
+  def addQuote(
+      channelName: ChannelName,
+      chatUser: ChatUser,
+      text: String
+  ): Stream[ConnectionIO, Response] = {
+    val q = quotes.insertQuote(text, chatUser.username, channelName).map {
+      case Right(q) => RespondWith(q.display)
+      case Left(q)  => RespondWith(s"That quote already exists man! It's #${q.qid}")
+    }
+    def onErr(e: Throwable): Stream[Pure, Response] =
+      errHandler(e, s"I couldn't add quote for stream ${channelName.name}")
+    Stream.eval(q).handleErrorWith(onErr)
+  }
+
+  // TODO: maybe we should mark the quote deleted instead of deleting it
+  // and then we could take the user who deleted it too.
+  // we could add two new columns to quote: deletedAt and deletedBy
+  def deleteQuote(channelName: ChannelName, n: Int): Stream[ConnectionIO, Response] =
+    Stream.eval(quotes.deleteQuote(channelName, n).map {
+      case true  => RespondWith("Ok I deleted it.")
+      case false => RespondWith(err(s"I couldn't delete quote $n for channel ${channelName.name}"))
+    })
+
+  private def withQuoteOr(
+      foq: ConnectionIO[Option[Quote]],
+      msg: String
+  ): Stream[ConnectionIO, Response] =
+    Stream.eval(foq.map(oq => RespondWith(oq.map(_.display).getOrElse(msg))))
+
+  def getExactQuote(channelName: ChannelName, qid: Int): Stream[ConnectionIO, Response] =
+    withQuoteOr(quotes.getQuote(channelName, qid), s"I couldn't find quote #$qid, man.")
+
+  def getRandomQuote(channelName: ChannelName): Stream[ConnectionIO, Response] =
+    withQuoteOr(quotes.getRandomQuote(channelName), "I couldn't find any quotes, man.")
+
+  // TODO: this take(1) here is a little sus.
+  // What do we really want to return here? Maybe we just want to return a link...
+  // or a random one? Who knows.
+  def search(channelName: ChannelName, like: String): Stream[ConnectionIO, Response] =
+    Stream.eval(quotes.searchQuotes_Random(channelName, like).map {
+      case Some(q) => RespondWith(q.display)
+      case None    => RespondWith("Couldn't find any quotes that match that.")
+    })
+
+  private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
+
+  private def errHandler(e: Throwable, msg: String): Stream[Pure, Response] =
+    Stream.emits(List[Response](RespondWith(err(msg)), LogErr(e)))
+
 }
