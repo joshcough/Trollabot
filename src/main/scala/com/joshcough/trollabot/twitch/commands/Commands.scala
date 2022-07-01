@@ -1,20 +1,18 @@
 package com.joshcough.trollabot.twitch.commands
 
 import cats.Monad
-import cats.effect.MonadCancelThrow
 import cats.implicits._
 import com.joshcough.trollabot.ParserCombinators._
-import com.joshcough.trollabot.api.Api
+import com.joshcough.trollabot.api.{Api, UserCommandName}
 import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser}
 import doobie.implicits._
-import doobie.{ConnectionIO, Transactor}
+import doobie.ConnectionIO
 import fs2.Stream
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Codec, Decoder, Encoder, derivation}
 import logstage.LogstageCodec
 import logstage.circe.LogstageCirceCodec
-import logstage.strict.LogIOStrict
 
 sealed trait Permission
 case object God extends Permission
@@ -96,14 +94,17 @@ trait BotCommand {
   override def toString: String = s"$name ${parser.describe}"
   def help: String = toString // TODO: maybe we change this around later, but its fine for now.
 
-  def execute(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
+  def mkAction(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
 
-  def apply(
+  def parseAndCheckPerms(
       channelName: ChannelName,
       chatUser: ChatUser,
       args: String
-  ): Either[String, ActionType] =
-    parser(args.trim).toEither.map(a => execute(channelName, chatUser, a))
+  ): Either[String, Option[Action]] =
+    parser(args.trim).toEither.map { a =>
+      val action = mkAction(channelName, chatUser, a)
+      if (hasPermssion(channelName, chatUser, action)) Some(action) else None
+    }
 
   // returns true if the given user is allowed to run the command on the given channel
   // false if not.
@@ -117,45 +118,27 @@ trait BotCommand {
       case Anyone   => true
     }
   }
+
+  def interpret(
+      msg: ChatMessage,
+      args: String,
+      api: Api[ConnectionIO]
+  ): Either[String, Option[Stream[ConnectionIO, Response]]] =
+    parseAndCheckPerms(msg.channel, msg.user, args).map(_.map(_.run(api)))
 }
 
 object BotCommand {
-  def apply[T, AT <: Action](cmdName: String, cmdParser: Parser[T], perm: AT => Permission)(
-      f: (ChannelName, ChatUser, T) => AT
+  def apply[P, AT <: Action](cmdName: String, cmdParser: Parser[P], perm: AT => Permission)(
+      f: (ChannelName, ChatUser, P) => AT
   ): BotCommand =
     new BotCommand {
-      override type A = T
+      override type A = P
       override type ActionType = AT
       val name: String = cmdName
       val permission: ActionType => Permission = perm
-      val parser: Parser[T] = cmdParser
-      def execute(channelName: ChannelName, chatUser: ChatUser, t: T): AT =
+      val parser: Parser[P] = cmdParser
+      def mkAction(channelName: ChannelName, chatUser: ChatUser, t: P): AT =
         f(channelName, chatUser, t)
-    }
-}
-
-object CommandInterpreter {
-
-  def interpret[F[_]: MonadCancelThrow](
-      msg: ChatMessage,
-      cmd: BotCommand,
-      args: String,
-      api: Api[ConnectionIO],
-      xa: Transactor[F],
-      L: LogIOStrict[F]
-  ): Either[String, Stream[F, Response]] =
-    cmd.apply(msg.channel, msg.user, args).map { action =>
-      val e = s"{cmdName: ${cmd.name}, user: ${msg.user}, channel: ${msg.channel}, action: $action}"
-      if (cmd.hasPermssion(msg.channel, msg.user, action)) for {
-        _ <- Stream.eval(L.debug(s"executing $e"))
-        res <- action.run(api).transact(xa)
-        _ <- Stream.eval(L.debug(s"done executing $e"))
-      } yield res
-      // user doesnt' have permission to execute this command, so just do nothing.
-      // we _could_ send back a message saying "you can't do that", but i think its too noisy.
-      else
-        Stream
-          .eval(L.debug(s"user ${msg.user} lacks permission to run: ${cmd.name}")) *> Stream.empty
     }
 }
 
@@ -186,31 +169,41 @@ case object Commands {
       ++ Quotes.quoteCommands
       ++ Counters.counterCommands
       ++ Scores.scoreCommands
+      ++ UserCommands.userCommandCommands
       ++ BuiltinCommands.builtinCommands).map(c => (c.name, c)).toMap
 }
 
-case class CommandRunner(commands: Map[String, BotCommand]) {
+case class CommandRunner(buildInCommands: Map[String, BotCommand]) {
   // returns the command (if it exists) and the arguments to be passed to the command
-  def parseMessageAndFindCommand(msg: ChatMessage): Option[(BotCommand, String)] = {
+  def parseMessageAndFindCommand(msg: ChatMessage): Option[(BotCommand, String)] =
+    commandNameAndArgs(msg).flatMap {
+      case (commandName, args) =>
+        buildInCommands.get(commandName).map((_, args))
+    }
+
+  def commandNameAndArgs(msg: ChatMessage): Option[(String, String)] = {
     val (commandName, args) = msg.body.trim.span(_ != ' ')
-    commands.get(commandName).map((_, args))
+    if (commandName.startsWith("!")) Some((commandName, args)) else None
   }
 
-  def processMessage[F[_]: MonadCancelThrow](
+  def processMessage(
       msg: ChatMessage,
-      api: Api[ConnectionIO],
-      xa: Transactor[F]
-  )(implicit
-      L: LogIOStrict[F]
-  ): Stream[F, Response] = {
+      api: Api[ConnectionIO]
+  ): Stream[ConnectionIO, Response] = {
     parseMessageAndFindCommand(msg) match {
       case Some((cmd, args)) =>
-        CommandInterpreter.interpret(msg, cmd, args, api, xa, L) match {
-          case Left(_)  => Stream(RespondWith(cmd.help))
-          case Right(r) => r
+        cmd.interpret(msg, args, api) match {
+          case Left(_) => Stream(RespondWith(cmd.help))
+          case Right(or) =>
+            or match {
+              case Some(r) => r
+              case None    => Stream.emit(RespondWith("You don't have permission to do that, man."))
+            }
         }
       // no command for this chat message, so just do nothing.
-      case None => Stream.empty
+      case None =>
+        val (commandName, _) = msg.body.trim.span(_ != ' ')
+        UserCommands.getUserCommand[ConnectionIO](api)(msg.channel, UserCommandName(commandName))
     }
   }
 }

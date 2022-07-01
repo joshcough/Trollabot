@@ -1,7 +1,7 @@
 package com.joshcough.trollabot
 
 import cats.implicits._
-import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb}
+import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb, UserCommandName, UserCommandsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -127,6 +127,29 @@ class DatabaseSuite extends PostgresContainerSuite {
         assertEquals(s4, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 1, 1)) &&
         assertEquals(s5, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 3, 2)) &&
         assertEquals(s6, Score(Some(1), dautChannel, Some("viper"), Some("hera"), 4, 0))
+    }
+  }
+
+  test("can create and get user commands") {
+    withDb {
+      for {
+        // create
+        c0 <- UserCommandsDb.insertUserCommand(dautChannel, jc, UserCommandName("housed"), "Been housed 5 times!")
+        c1 <- UserCommandsDb.getUserCommand(dautChannel,  UserCommandName("housed"))
+        // update
+        c2 <- UserCommandsDb.editUserCommand(dautChannel, UserCommandName("housed"), "Been housed 6 times!")
+        c3 <- UserCommandsDb.getUserCommand(dautChannel,  UserCommandName("housed"))
+        // delete
+        deleted <- UserCommandsDb.deleteUserCommand(dautChannel, UserCommandName("housed"))
+        c5 <- UserCommandsDb.getUserCommand(dautChannel,  UserCommandName("housed"))
+      } yield {
+        // getting after inserting should get the thing we just inserted
+        assertEquals(Option(c0), c1) &&
+        // getting after editing should get the new body
+          assertEquals(c2, c3) && assert(c2.isDefined) &&
+        // delete should work, and getting afterwards should yield nothing
+          assert(deleted) && assertEquals(c5, None)
+      }
     }
   }
 }

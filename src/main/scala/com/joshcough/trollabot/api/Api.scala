@@ -18,7 +18,8 @@ case class Api[F[_]](
     quotes: Quotes[F],
     counters: Counters[F],
     healthCheck: HealthCheck[F],
-    scores: Scores[F]
+    scores: Scores[F],
+    userCommands: UserCommands[F]
 )
 
 object Api {
@@ -28,9 +29,10 @@ object Api {
       Quotes.impl(xa),
       Counters.impl(xa),
       HealthCheck.impl,
-      Scores.impl(xa)
+      Scores.impl(xa),
+      UserCommands.impl(xa)
     )
 
   def db: Api[ConnectionIO] =
-    new Api[ConnectionIO](StreamsDb, QuotesDb, CountersDb, HealthCheckDb, ScoresDb)
+    new Api[ConnectionIO](StreamsDb, QuotesDb, CountersDb, HealthCheckDb, ScoresDb, UserCommandsDb)
 }

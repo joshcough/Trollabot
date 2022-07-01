@@ -10,6 +10,7 @@ object TestQueries {
   val dropQuotesTable: Update0 = sql"drop table if exists quotes".update
   val dropCountersTable: Update0 = sql"drop table if exists counters".update
   val dropScoresTable: Update0 = sql"drop table if exists scores".update
+  val dropUserCommandsTable: Update0 = sql"drop table if exists user_commands".update
 
   val createStreamsTable: Update0 =
     sql"""
@@ -59,8 +60,21 @@ object TestQueries {
         CONSTRAINT unique_score_channel UNIQUE (channel)
       )""".update
 
+  val createUserCommandsTable: Update0 =
+    sql"""
+      CREATE TABLE user_commands (
+        id SERIAL PRIMARY KEY,
+        name character varying NOT NULL,
+        body text NOT NULL,
+        channel text NOT NULL references streams(name),
+        added_by text NOT NULL,
+        added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_user_commands_channel UNIQUE (channel, name)
+      )""".update
+
   val recreateSchema: ConnectionIO[Int] =
     (
+      dropUserCommandsTable,
       dropScoresTable,
       dropCountersTable,
       dropQuotesTable,
@@ -69,9 +83,11 @@ object TestQueries {
       createQuotesTable,
       createCountersTable,
       createScoresTable,
+      createUserCommandsTable,
     ) match {
-      case (a, b, c, d, e, f, g, h) =>
-        (a.run, b.run, c.run, d.run, e.run, f.run, g.run, h.run).mapN(_ + _ + _ + _ + _ + _ + _ + _)
+      case (a, b, c, d, e, f, g, h, i, j) =>
+        (a.run, b.run, c.run, d.run, e.run, f.run, g.run, h.run, i.run, j.run)
+          .mapN(_ + _ + _ + _ + _ + _ + _ + _ + _ + _)
     }
 
   val deleteAllQuotes: Update0 = sql"delete from quotes".update

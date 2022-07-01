@@ -104,7 +104,8 @@ object ScoreQueries {
     sql"""select * from scores where channel = ${channelName.name}""".query[Score]
 
   def updateScores(channelName: ChannelName, fragment: Fragment): Query0[Score] =
-    (fr"update scores" ++ fragment ++ fr"""where channel = ${channelName.name} returning *""").query[Score]
+    (fr"update scores" ++ fragment ++ fr"""where channel = ${channelName.name} returning *""")
+      .query[Score]
 }
 
 object ScoresDb extends Scores[ConnectionIO] {

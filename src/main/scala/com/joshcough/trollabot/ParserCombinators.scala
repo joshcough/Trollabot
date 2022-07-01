@@ -224,7 +224,7 @@ trait ParserCombinators extends ScalaEnrichment {
     * Convert a String into a Parser that accepts only that String as valid input.
     */
   implicit def stringToParser(s: String): Parser[String] =
-    anyStringAs(s).filterWith(_ == s)(_ => s"expected: $s") named s
+    anyStringAs(s).filterWith(_ == s)(r => s"expected: $s... $r ?") named s
 
   /**
     * Create a parser from an operation that parses a String and returns Option[T].

@@ -108,11 +108,7 @@ case class Irc[F[_]: Network: Async](
       val outgoing: Stream[F, OutgoingMessage] =
         (loginStream ++ initialMessages).flatMap(sendMessage(socket, _))
       val incoming: Stream[F, IncomingMessage] = socket.reads.through(text.utf8.decode).flatMap {
-        s =>
-          for {
-            _ <- Stream.eval(L.debug(s"handling incoming message: $s"))
-            m <- handleIncomingMessage(socket, s)
-          } yield m
+        s => handleIncomingMessage(socket, s)
       }
       outgoing ++ incoming.repeat
     }

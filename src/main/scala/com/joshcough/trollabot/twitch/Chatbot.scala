@@ -46,7 +46,7 @@ case class Chatbot[F[_]: Async: Network](ircConfig: IrcConfig) {
       api.streams.getJoinedStreams.flatMap(s => join(s.name)).transact(xa)
 
     Irc(ircConfig, joinMessages)(cm =>
-      CommandRunner(Commands.commands).processMessage(cm, api, xa).flatMap {
+      CommandRunner(Commands.commands).processMessage(cm, api).transact(xa).flatMap {
         case RespondWith(s)   => fs2.Stream(Irc.privMsg(cm.channel, s))
         case Join(streamName) => join(streamName)
         case Part             => fs2.Stream(Irc.part(cm.channel))
