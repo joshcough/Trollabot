@@ -209,6 +209,27 @@ class CommandsSuite extends PostgresContainerSuite {
     }
   )
 
+  test("user commands with counters")(
+    withDb {
+      for {
+        _ <- runCmd("!addCounter x")
+        _ <- runCmd("!addCounter y")
+        // create
+        r0 <- runCmd("!add housed Been housed ${x} times!")
+        r1 <- runCmd("!housed")
+        r2 <- runCmd("!housed")
+        _ <- runCmd("!add mf I said mf ${x}${y} times!")
+        r3 <- runCmd("!mf")
+        r4 <- runCmd("!mf")
+      } yield
+        assertEquals(r0, List(RespondWith("Ok I added it."))) &&
+          assertEquals(r1, List(RespondWith("Been housed 1 times!"))) &&
+          assertEquals(r2, List(RespondWith("Been housed 2 times!"))) &&
+          assertEquals(r3, List(RespondWith("I said mf 31 times!"))) &&
+          assertEquals(r4, List(RespondWith("I said mf 42 times!")))
+    }
+  )
+
   def parse(msg: String): Action = {
     commandRunner.parseMessageAndFindCommand(ChatMessage(user, channel, msg)) match {
       case None => fail(s"couldn't find command for message: $msg")

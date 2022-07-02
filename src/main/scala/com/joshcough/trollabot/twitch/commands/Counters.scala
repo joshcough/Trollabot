@@ -60,14 +60,11 @@ object Counters {
       .eval(
         api.counters
           .incrementCounter(channelName, counterName)
-          .map(c => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}"))
+          .map{
+            case Some(c) => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}")
+            case None => RespondWith(s"Ok I couldn't find counter: ${counterName.name}, man.")
+          }
       )
-      .handleErrorWith { e =>
-        errHandler(
-          e,
-          s"I couldn't increment counter for ${counterName.name} stream ${channelName.name}"
-        )
-      }
 
   private def err(msg: String): String = s"Something went wrong! $msg. Somebody tell @artofthetroll"
 

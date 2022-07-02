@@ -125,6 +125,17 @@ trait BotCommand {
       api: Api[ConnectionIO]
   ): Either[String, Option[Stream[ConnectionIO, Response]]] =
     parseAndCheckPerms(msg.channel, msg.user, args).map(_.map(_.run(api)))
+
+  def interpretFully(
+      msg: ChatMessage,
+      args: String,
+      api: Api[ConnectionIO]
+  ): Stream[ConnectionIO, Response] =
+    interpret(msg, args, api) match {
+      case Left(_) => Stream(RespondWith(help))
+      case Right(or) =>
+        or.getOrElse(Stream.emit(RespondWith("You don't have permission to do that, man.")))
+    }
 }
 
 object BotCommand {
@@ -177,8 +188,7 @@ case class CommandRunner(buildInCommands: Map[String, BotCommand]) {
   // returns the command (if it exists) and the arguments to be passed to the command
   def parseMessageAndFindCommand(msg: ChatMessage): Option[(BotCommand, String)] =
     commandNameAndArgs(msg).flatMap {
-      case (commandName, args) =>
-        buildInCommands.get(commandName).map((_, args))
+      case (commandName, args) => buildInCommands.get(commandName).map((_, args))
     }
 
   def commandNameAndArgs(msg: ChatMessage): Option[(String, String)] = {
@@ -191,19 +201,12 @@ case class CommandRunner(buildInCommands: Map[String, BotCommand]) {
       api: Api[ConnectionIO]
   ): Stream[ConnectionIO, Response] = {
     parseMessageAndFindCommand(msg) match {
-      case Some((cmd, args)) =>
-        cmd.interpret(msg, args, api) match {
-          case Left(_) => Stream(RespondWith(cmd.help))
-          case Right(or) =>
-            or match {
-              case Some(r) => r
-              case None    => Stream.emit(RespondWith("You don't have permission to do that, man."))
-            }
-        }
+      case Some((cmd, args)) => cmd.interpretFully(msg, args, api)
       // no command for this chat message, so just do nothing.
       case None =>
         val (commandName, _) = msg.body.trim.span(_ != ' ')
-        UserCommands.getUserCommand[ConnectionIO](api)(msg.channel, UserCommandName(commandName))
+        UserCommands
+          .evaluateUserCommand[ConnectionIO](api)(msg.channel, UserCommandName(commandName))
     }
   }
 }

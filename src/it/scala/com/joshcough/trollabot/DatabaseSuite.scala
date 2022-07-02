@@ -94,18 +94,18 @@ class DatabaseSuite extends PostgresContainerSuite {
       for {
         // create a counter called "housed" and increment it twice
         c0 <- CountersDb.insertCounter(dautChannel, jc, CounterName("housed")).map(AssertableCounter(_))
-        c1 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(AssertableCounter(_))
-        c2 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(AssertableCounter(_))
+        c1 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(_.map(AssertableCounter(_)))
+        c2 <- CountersDb.incrementCounter(dautChannel, CounterName("housed")).map(_.map(AssertableCounter(_)))
 
         // create another counter called "brutal" and increment it once
         _ <- CountersDb.insertCounter(dautChannel, jc, CounterName("brutal")).map(AssertableCounter(_))
-        _ <- CountersDb.incrementCounter(dautChannel,CounterName("brutal")).map(AssertableCounter(_))
+        _ <- CountersDb.incrementCounter(dautChannel,CounterName("brutal")).map(_.map(AssertableCounter(_)))
 
         // get all the counters
         cs <- CountersDb.getCounters(ChannelName("daut")).compile.toList.map(_.map(AssertableCounter(_)))
       } yield
         assertEquals(c0, housed(0)) &&
-        assertEquals(List(c1, c2), List(housed(1), housed(2))) &&
+        assertEquals(List(c1, c2), List(Some(housed(1)), Some(housed(2)))) &&
         assertEquals(cs, List(housed(2), brutal(1)))
     }
   }

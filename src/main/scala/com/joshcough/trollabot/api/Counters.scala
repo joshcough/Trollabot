@@ -41,7 +41,7 @@ trait Counters[F[_]] {
       chatUser: ChatUser,
       counterName: CounterName
   ): F[Counter]
-  def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Counter]
+  def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Option[Counter]]
 }
 
 object Counters {
@@ -59,7 +59,7 @@ object Counters {
       ): F[Counter] =
         CountersDb.insertCounter(channelName, chatUser, counterName).transact(xa)
 
-      def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Counter] =
+      def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Option[Counter]] =
         CountersDb.incrementCounter(channelName, counterName).transact(xa)
     }
 }
@@ -102,6 +102,6 @@ object CountersDb extends Counters[ConnectionIO] {
   ): ConnectionIO[Counter] =
     CounterQueries.insertCounter(counterName, chatUser.username, channelName).unique
 
-  def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Counter] =
-    CounterQueries.incrementCounter(counterName, channelName).unique
+  def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Option[Counter]] =
+    CounterQueries.incrementCounter(counterName, channelName).option
 }
