@@ -117,13 +117,14 @@ object UserCommands {
   def evaluateUserCommand[F[_]: Monad](api: Api[F])(
       channelName: ChannelName,
       userCommandName: UserCommandName
-  ): Stream[F, Response] = Stream.eval(for {
-    c <- api.userCommands.getUserCommand(channelName, userCommandName)
-    r <- c match {
-      case None => (RespondWith("Couldn't find that command, man."): Response).pure[F]
-      case Some(cmd) => UserCommandInterpreter.interpret(api)(channelName, cmd.body)
-    }
-  } yield r)
+  ): Stream[F, Response] =
+    Stream
+      .eval(api.userCommands.getUserCommand(channelName, userCommandName))
+      .flatMap(c =>
+        c.fold(Stream.empty: Stream[F, Response])(cmd =>
+          Stream.eval(UserCommandInterpreter.interpret(api)(channelName, cmd.body))
+        )
+      )
 }
 
 object UserCommandInterpreter {
@@ -160,9 +161,9 @@ object UserCommandInterpreter {
     def parseIdentifier(rest: String): (String, String) = {
       val (l, r) = rest.span(_ != '}')
       // TODO: what would it mean if l _didn't start with ${ ?
-      val l_ = if(l.startsWith("${")) l.drop(2) else l
+      val l_ = if (l.startsWith("${")) l.drop(2) else l
       // TODO: similarly, what would it mean if r didn't start with } ?
-      val r_ = if(r.startsWith("}")) r.drop(1) else r
+      val r_ = if (r.startsWith("}")) r.drop(1) else r
       (l_, r_)
     }
 
@@ -171,14 +172,16 @@ object UserCommandInterpreter {
     case object IdentifierMode extends Mode
 
     def go(input: String, mode: Mode): List[Node] = {
-      if(input.isEmpty) Nil else mode match {
-        case TextMode =>
-          val (s, r) = parseText(input)
-          TextNode(s) :: go(r, IdentifierMode)
-        case IdentifierMode =>
-          val (s, r) = parseIdentifier(input)
-          CounterNode(channelName, CounterName(s)) :: go(r, TextMode)
-      }
+      if (input.isEmpty) Nil
+      else
+        mode match {
+          case TextMode =>
+            val (s, r) = parseText(input)
+            TextNode(s) :: go(r, IdentifierMode)
+          case IdentifierMode =>
+            val (s, r) = parseIdentifier(input)
+            CounterNode(channelName, CounterName(s)) :: go(r, TextMode)
+        }
     }
     // TODO: right now we are never failing... but we could in various ways
     // easiest one to understand is if we had something like "hello ${joe"
@@ -194,8 +197,9 @@ object UserCommandInterpreter {
   def interpret[F[_]: Monad](api: Api[F])(
       channelName: ChannelName,
       body: String
-  ): F[Response] = parse(channelName, body) match {
-    case Left(err) => (RespondWith(err): Response).pure[F]
-    case Right(nodes) => interpNodes(api)(nodes).map(RespondWith(_))
-  }
+  ): F[Response] =
+    parse(channelName, body) match {
+      case Left(err)    => (RespondWith(err): Response).pure[F]
+      case Right(nodes) => interpNodes(api)(nodes).map(RespondWith(_))
+    }
 }

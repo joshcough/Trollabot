@@ -95,10 +95,14 @@ case class Irc[F[_]: Network: Async](
       m.trim match {
         case command if command.startsWith("PING") => sendMessage(socket, pong) *> Stream()
         case _ @PRIVMSGRegex(badges, username, _, channel, message) =>
-          val cm = createChatMessage(badges, username, channel, message)
-          processChatMessage(cm).flatMap(om =>
-            sendMessage(socket, om).map(_ => IncomingMessage(m, List(om)))
-          )
+          for {
+            _ <- Stream.eval(
+              L.debug(s"Handling incoming message from $username on channel $channel: $message")
+            )
+            res <- processChatMessage(createChatMessage(badges, username, channel, message))
+              .flatMap(om => sendMessage(socket, om).map(_ => IncomingMessage(m, List(om))))
+            _ <- Stream.eval(L.debug(s"Result: ${res.toString}"))
+          } yield res
         case x => Stream(IncomingMessage(x, Nil))
       }
 

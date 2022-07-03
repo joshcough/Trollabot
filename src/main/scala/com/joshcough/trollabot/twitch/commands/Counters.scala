@@ -60,9 +60,9 @@ object Counters {
       .eval(
         api.counters
           .incrementCounter(channelName, counterName)
-          .map{
+          .map {
             case Some(c) => RespondWith(s"Ok I incremented it. ${c.name.name}:${c.count}")
-            case None => RespondWith(s"Ok I couldn't find counter: ${counterName.name}, man.")
+            case None    => RespondWith(s"Ok I couldn't find counter: ${counterName.name}, man.")
           }
       )
 

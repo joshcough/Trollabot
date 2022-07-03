@@ -102,6 +102,9 @@ object CountersDb extends Counters[ConnectionIO] {
   ): ConnectionIO[Counter] =
     CounterQueries.insertCounter(counterName, chatUser.username, channelName).unique
 
-  def incrementCounter(channelName: ChannelName, counterName: CounterName): ConnectionIO[Option[Counter]] =
+  def incrementCounter(
+      channelName: ChannelName,
+      counterName: CounterName
+  ): ConnectionIO[Option[Counter]] =
     CounterQueries.incrementCounter(counterName, channelName).option
 }

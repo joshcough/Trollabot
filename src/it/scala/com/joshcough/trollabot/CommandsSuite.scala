@@ -184,7 +184,7 @@ class CommandsSuite extends PostgresContainerSuite {
           assertEquals(r2, List(RespondWith("Ok I edited it."))) &&
           assertEquals(r3, List(RespondWith("Been housed 6 times!"))) &&
           assertEquals(r4, List(RespondWith("Ok I deleted it."))) &&
-          assertEquals(r5, List(RespondWith("Couldn't find that command, man.")))
+          assertEquals(r5, Nil)
     }
   )
   test("user commands 2")(
@@ -205,7 +205,7 @@ class CommandsSuite extends PostgresContainerSuite {
           assertEquals(r2, List(RespondWith("Ok I edited it."))) &&
           assertEquals(r3, List(RespondWith("Been housed 6 times!"))) &&
           assertEquals(r4, List(RespondWith("Ok I deleted it."))) &&
-          assertEquals(r5, List(RespondWith("Couldn't find that command, man.")))
+          assertEquals(r5, Nil)
     }
   )
 
