@@ -30,6 +30,7 @@ object Deps {
     "io.circe" %% "circe-core" % CirceVersion,
     "io.circe" %% "circe-generic" % CirceVersion,
     "io.circe" %% "circe-parser" % CirceVersion,
+    "io.circe" %% "circe-shapes" % CirceVersion,
     "io.circe" %% "circe-refined" % CirceVersion,
     "org.http4s" %% "http4s-circe" % Http4sVersion,
     "org.http4s" %% "http4s-dsl" % Http4sVersion,

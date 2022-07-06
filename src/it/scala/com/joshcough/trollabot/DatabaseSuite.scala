@@ -4,8 +4,6 @@ import cats.implicits._
 import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb, UserCommandName, UserCommandsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
 
 class DatabaseSuite extends PostgresContainerSuite {
 
@@ -166,9 +164,6 @@ object AssertableQuote {
 
   def assertQuote(actual: Quote, expected: AssertableQuote): Unit =
     munit.Assertions.assertEquals(AssertableQuote(actual), expected)
-
-  implicit val assQuoteDecoder: Decoder[AssertableQuote] = deriveDecoder[AssertableQuote]
-  implicit val assQuoteEncoder: Encoder[AssertableQuote] = deriveEncoder[AssertableQuote]
 }
 
 object AssertableCounter {
@@ -179,7 +174,4 @@ object AssertableCounter {
 
   def assertQuote(actual: Counter, expected: AssertableCounter): Unit =
     munit.Assertions.assertEquals(AssertableCounter(actual), expected)
-
-  implicit val assCounterDecoder: Decoder[AssertableCounter] = deriveDecoder[AssertableCounter]
-  implicit val assCounterEncoder: Encoder[AssertableCounter] = deriveEncoder[AssertableCounter]
 }

@@ -9,8 +9,6 @@ import fs2.{Pure, Stream}
 
 object Counters {
 
-  lazy val counterCommands: List[BotCommand] = List(addCounterCommand, incCounterCommand)
-
   // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
   case class AddCounterAction(
       channelName: ChannelName,
@@ -24,6 +22,8 @@ object Counters {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       incCounter(api)(channelName, counterName)
   }
+
+  lazy val counterCommands: List[BotCommand] = List(addCounterCommand, incCounterCommand)
 
   val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
 

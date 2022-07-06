@@ -1,24 +1,14 @@
 package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
-import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, TimestampInstances}
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Codec, Decoder, Encoder, derivation}
-import logstage.LogstageCodec
-import logstage.circe.LogstageCirceCodec
 
 import java.sql.Timestamp
-import TimestampInstances._
 
 case class CounterName(name: String) extends AnyVal
-
-object CounterName {
-  implicit val circeCodec: Codec[CounterName] = derivation.deriveCodec[CounterName]
-  implicit val logstageCodec: LogstageCodec[CounterName] = LogstageCirceCodec.derived[CounterName]
-}
 
 case class Counter(
     id: Option[Int],
@@ -28,11 +18,6 @@ case class Counter(
     addedBy: ChatUserName,
     addedAt: Timestamp
 )
-
-object Counter {
-  implicit val counterDecoder: Decoder[Counter] = deriveDecoder[Counter]
-  implicit val counterEncoder: Encoder[Counter] = deriveEncoder[Counter]
-}
 
 trait Counters[F[_]] {
   def getCounters(channelName: ChannelName): fs2.Stream[F, Counter]

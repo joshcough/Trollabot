@@ -5,27 +5,31 @@ import com.joshcough.trollabot.ParserCombinators._
 import com.joshcough.trollabot.ChannelName
 import com.joshcough.trollabot.api.Api
 import io.circe.syntax.EncoderOps
+import io.circe.generic.auto._
+
 
 object Streams {
 
-  val channelNameParser: Parser[ChannelName] = anyStringAs("channel name").map(ChannelName(_))
+  val channelNameParser: Parser[ChannelName] = anyStringAs("channel name").map(ChannelName)
 
   lazy val streamCommands: List[BotCommand] = List(joinCommand, partCommand, printStreamsCommand)
 
-  case object PrintStreamsAction extends Action {
+  sealed trait StreamsAction extends Action
+
+  case class PrintStreamsAction() extends StreamsAction {
     def run[F[_]: Monad](api: Api[F]): fs2.Stream[F, Response] = printStreams(api)
   }
   // TODO: we should keep track of the user who parted.
-  case class PartAction(channelName: ChannelName) extends Action {
+  case class PartAction(channelName: ChannelName) extends StreamsAction {
     def run[F[_]: Monad](api: Api[F]): fs2.Stream[F, Response] = part(api)(channelName)
   }
-  case class JoinAction(newChannelName: ChannelName) extends Action {
+  case class JoinAction(newChannelName: ChannelName) extends StreamsAction {
     def run[F[_]: Monad](api: Api[F]): fs2.Stream[F, Response] = join(api)(newChannelName)
   }
 
   val printStreamsCommand: BotCommand =
-    BotCommand[Unit, PrintStreamsAction.type]("!printStreams", empty, _ => God)((_, _, _) =>
-      PrintStreamsAction
+    BotCommand[Unit, PrintStreamsAction]("!printStreams", empty, _ => God)((_, _, _) =>
+      PrintStreamsAction()
     )
 
   val partCommand: BotCommand =
@@ -37,7 +41,7 @@ object Streams {
     )
 
   def printStreams[F[_]](api: Api[F]): fs2.Stream[F, Response] =
-    api.streams.getStreams.map(_.asJson.noSpaces).reduce((l, r) => s"$l,$r").map(RespondWith(_))
+    api.streams.getStreams.map(_.asJson.noSpaces).reduce((l, r) => s"$l,$r").map(RespondWith)
 
   def part[F[_]](api: Api[F])(channelName: ChannelName): fs2.Stream[F, Response] =
     fs2.Stream

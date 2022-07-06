@@ -1,29 +1,18 @@
 package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
-import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName, TimestampInstances}
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Codec, Decoder, Encoder, derivation}
-import logstage.LogstageCodec
-import logstage.circe.LogstageCirceCodec
 
 import java.sql.Timestamp
-import TimestampInstances._
 
 case class UserCommandName(namePotentiallyWithBang: String) extends AnyVal {
   // i need to clean this up but for now eh
   def name: String =
     if (namePotentiallyWithBang.startsWith("!")) namePotentiallyWithBang.drop(1)
     else namePotentiallyWithBang
-}
-
-object UserCommandName {
-  implicit val circeCodec: Codec[UserCommandName] = derivation.deriveCodec[UserCommandName]
-  implicit val logstageCodec: LogstageCodec[UserCommandName] =
-    LogstageCirceCodec.derived[UserCommandName]
 }
 
 case class UserCommand(
@@ -34,11 +23,6 @@ case class UserCommand(
     addedBy: ChatUserName,
     addedAt: Timestamp
 )
-
-object UserCommand {
-  implicit val userCommandDecoder: Decoder[UserCommand] = deriveDecoder[UserCommand]
-  implicit val userCommandEncoder: Encoder[UserCommand] = deriveEncoder[UserCommand]
-}
 
 trait UserCommands[F[_]] {
   def insertUserCommand(

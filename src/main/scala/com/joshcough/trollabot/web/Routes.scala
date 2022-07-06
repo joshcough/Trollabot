@@ -4,6 +4,8 @@ import cats.effect.Sync
 import cats.implicits._
 import com.joshcough.trollabot.{BuildInfo, ChannelName}
 import com.joshcough.trollabot.api.{Api, Counters, HealthCheck, Quotes, Streams}
+import com.joshcough.trollabot.TimestampInstances._
+import io.circe.generic.auto._
 import org.http4s.{BuildInfo => _, _}
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.Http4sDsl

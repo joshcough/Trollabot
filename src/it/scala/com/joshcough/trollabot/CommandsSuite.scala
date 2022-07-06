@@ -24,13 +24,13 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(parse("!delQuote 0"), DelQuoteAction(channel, 0))
     assertEquals(parse("!quote 0"), GetExactQuoteAction(channel, 0))
     assertEquals(parse("!quote"), GetRandomQuoteAction(channel))
-    assertEquals(parse("!printStreams"), PrintStreamsAction)
+    assertEquals(parse("!printStreams"), PrintStreamsAction())
     assertEquals(parse("!addCounter x"), AddCounterAction(channel, user, CounterName("x")))
     assertEquals(parse("!inc x"), IncCounterAction(channel, CounterName("x")))
     assertEquals(parse("!help !quote"), HelpAction("!quote"))
     assertEquals(parse("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
     assertEquals(parse("!buildInfo"), BuildInfoAction)
-    assertEquals(parse("!score"), ScoreAction(channel, GetScore))
+    assertEquals(parse("!score"), ScoreAction(channel, GetScore()))
     assertEquals(parse("!score 2 3"), ScoreAction(channel, SetScore(2, 3)))
     assertEquals(parse("!score daut 4 viper 0"), ScoreAction(channel, SetAll("daut", "viper", 4, 0)))
     assertEquals(parse("!player artofthetroll"), SetPlayerAction(channel, "artofthetroll"))
@@ -116,7 +116,7 @@ class CommandsSuite extends PostgresContainerSuite {
           |{"name":{"name":"jonslow_"},"joined":false},
           |{"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
       for {
-        response <- run(PrintStreamsAction)
+        response <- run(PrintStreamsAction())
       } yield assertEquals(response, List(RespondWith(expectedText)))
     }
   }
@@ -150,7 +150,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("can set score/player/opponent")(
     withDb {
       for {
-        r0 <- run(ScoreAction(channel, GetScore))
+        r0 <- run(ScoreAction(channel, GetScore()))
         r1 <- run(SetPlayerAction(channel, "daut"))
         r2 <- run(SetOpponentAction(channel, "artofthetroll"))
         r3 <- run(ScoreAction(channel, SetScore(0, 4)))

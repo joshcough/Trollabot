@@ -1,7 +1,6 @@
 package com.joshcough.trollabot.twitch.commands
 
 import cats.Monad
-import cats.implicits._
 import com.joshcough.trollabot.ParserCombinators._
 import com.joshcough.trollabot.api.{Api, UserCommandName}
 import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser}
@@ -10,9 +9,6 @@ import doobie.ConnectionIO
 import fs2.Stream
 import io.circe.generic.auto._
 import io.circe.syntax._
-import io.circe.{Codec, Decoder, Encoder, derivation}
-import logstage.LogstageCodec
-import logstage.circe.LogstageCirceCodec
 
 sealed trait Permission
 case object God extends Permission
@@ -22,43 +18,14 @@ case object Anyone extends Permission
 
 sealed trait Response
 
-object Response {
-  implicit val encodeResponse: Encoder[Response] = Encoder.instance {
-    case r @ RespondWith(_) => r.asJson
-    case r @ Join(_)        => r.asJson
-    case _ @Part            => "Part".asJson // TODO: is this correct, or BS?
-    case r @ LogErr(_)      => r.asJson
-  }
-  implicit val decodeResponse: Decoder[Response] =
-    List[Decoder[Response]](
-      Decoder[RespondWith].widen,
-      Decoder[Join].widen,
-      Decoder[Part.type].widen,
-      Decoder[LogErr].widen
-    ).reduceLeft(_ or _)
-  implicit val logstageCodec: LogstageCodec[Response] = LogstageCirceCodec.derived[Response]
-}
-
 case class RespondWith(s: String) extends Response
 case class Join(newChannel: ChannelName) extends Response
-case object Part extends Response {
-  implicit val circeCodec: Codec[Part.type] = derivation.deriveCodec[Part.type]
-  implicit val logstageCodec: LogstageCodec[Part.type] = LogstageCirceCodec.derived[Part.type]
-}
+case object Part extends Response
+
 case class LogErr(err: String) extends Response
 
 object LogErr {
   def apply(t: Throwable): LogErr = LogErr(t.getMessage + "\n" + t.getStackTrace.mkString(","))
-}
-
-object RespondWith {
-  implicit val circeCodec: Codec[RespondWith] = derivation.deriveCodec[RespondWith]
-  implicit val logstageCodec: LogstageCodec[RespondWith] = LogstageCirceCodec.derived[RespondWith]
-}
-
-object Join {
-  implicit val circeCodec: Codec[Join] = derivation.deriveCodec[Join]
-  implicit val logstageCodec: LogstageCodec[Join] = LogstageCirceCodec.derived[Join]
 }
 
 trait Action {
@@ -88,13 +55,11 @@ trait BotCommand {
   type ActionType <: Action
   val name: String
   val parser: Parser[A]
-
   val permission: ActionType => Permission
+  def mkAction(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
 
   override def toString: String = s"$name ${parser.describe}"
   def help: String = toString // TODO: maybe we change this around later, but its fine for now.
-
-  def mkAction(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
 
   def parseAndCheckPerms(
       channelName: ChannelName,

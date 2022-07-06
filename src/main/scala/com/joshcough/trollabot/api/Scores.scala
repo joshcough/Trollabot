@@ -6,8 +6,6 @@ import com.joshcough.trollabot.ChannelName
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.{Decoder, Encoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 case class Score(
     id: Option[Int],
@@ -23,8 +21,6 @@ case class Score(
 
 object Score {
   def empty(channelName: ChannelName) = Score(None, channelName, None, None, 0, 0)
-  implicit val scoreDecoder: Decoder[Score] = deriveDecoder[Score]
-  implicit val scoreEncoder: Encoder[Score] = deriveEncoder[Score]
 }
 
 trait Scores[F[_]] {

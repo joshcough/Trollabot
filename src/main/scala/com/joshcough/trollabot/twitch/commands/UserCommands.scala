@@ -12,10 +12,12 @@ object UserCommands {
   lazy val userCommandCommands: List[BotCommand] =
     List(addUserCommandCommand, editUserCommandCommand, deleteUserCommandCommand)
 
+  trait UserCommandAction extends Action
+
   case class GetUserCommandAction(
       channelName: ChannelName,
       userCommandName: UserCommandName
-  ) extends Action {
+  ) extends UserCommandAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       evaluateUserCommand(api)(channelName, userCommandName)
   }
@@ -26,7 +28,7 @@ object UserCommands {
       chatUser: ChatUser,
       userCommandName: UserCommandName,
       body: String
-  ) extends Action {
+  ) extends UserCommandAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       addUserCommand(api)(channelName, chatUser, userCommandName, body)
   }
@@ -35,7 +37,7 @@ object UserCommands {
       channelName: ChannelName,
       userCommandName: UserCommandName,
       body: String
-  ) extends Action {
+  ) extends UserCommandAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       editUserCommand(api)(channelName, userCommandName, body)
   }
@@ -43,13 +45,13 @@ object UserCommands {
   case class DeleteUserCommandAction(
       channelName: ChannelName,
       userCommandName: UserCommandName
-  ) extends Action {
+  ) extends UserCommandAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       deleteUserCommand(api)(channelName, userCommandName)
   }
 
   val userCommandNameParser: Parser[UserCommandName] = // "!" ~>
-    anyStringAs("command name").map(UserCommandName(_))
+    anyStringAs("command name").map(UserCommandName)
 
   val addUserCommandCommand: BotCommand =
     BotCommand[UserCommandName ~ String, AddUserCommandAction](

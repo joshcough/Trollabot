@@ -7,8 +7,6 @@ import com.joshcough.trollabot.{ChannelName, ChatUserName}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.{Decoder, Encoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 import java.sql.Timestamp
 
@@ -27,9 +25,6 @@ case class Quote(
 }
 
 object Quote {
-  import com.joshcough.trollabot.TimestampInstances._
-  implicit val quoteDecoder: Decoder[Quote] = deriveDecoder[Quote]
-  implicit val quoteEncoder: Encoder[Quote] = deriveEncoder[Quote]
   implicit val quoteShow: Show[Quote] = Show.fromToString
 }
 
@@ -178,8 +173,8 @@ object QuotesDb extends Quotes[ConnectionIO] {
   def deleteQuote(channelName: ChannelName, qid: Int): ConnectionIO[Boolean] =
     QuoteQueries.deleteQuote(channelName, qid: Int).run.map(_ > 0)
 
-  def countQuotes: ConnectionIO[Count] = QuoteQueries.countQuotes.unique.map(Count(_))
+  def countQuotes: ConnectionIO[Count] = QuoteQueries.countQuotes.unique.map(Count)
 
   def countQuotesInStream(channelName: ChannelName): ConnectionIO[Count] =
-    QuoteQueries.countQuotesInStream(channelName).unique.map(Count(_))
+    QuoteQueries.countQuotesInStream(channelName).unique.map(Count)
 }

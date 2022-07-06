@@ -8,15 +8,7 @@ import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 
-import io.circe.{Decoder, Encoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-
 case class Stream(name: ChannelName, joined: Boolean)
-
-object Stream {
-  implicit val streamDecoder: Decoder[Stream] = deriveDecoder[Stream]
-  implicit val streamEncoder: Encoder[Stream] = deriveEncoder[Stream]
-}
 
 abstract class Streams[F[_]: Monad] {
   def getStreams: fs2.Stream[F, Stream]

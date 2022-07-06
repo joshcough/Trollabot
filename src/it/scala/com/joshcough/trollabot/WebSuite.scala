@@ -8,6 +8,7 @@ import com.joshcough.trollabot.web.Routes
 import doobie.Transactor
 import doobie.implicits._
 import io.circe.Decoder
+import io.circe.generic.auto._
 import io.circe.parser.decode
 import org.http4s.Method._
 import org.http4s.circe.CirceEntityCodec._
