@@ -106,12 +106,13 @@ object QuoteQueries {
     selectQuotes(channelName).query[Quote]
 
   def searchQuotesForStream(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by q.qid ASC")
-      .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
+    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by q.qid ASC").query[Quote]
+  // NOTE: to print out the sql being ran, use this:
+  // .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
+  // instead of .query[Quote]
 
   def searchQuotesForStream_Random(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by random() limit 1")
-      .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
+    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by random() limit 1").query[Quote]
 
   def getQuoteByQid(channelName: ChannelName, qid: Int): Query0[Quote] =
     (selectQuotes(channelName) ++ fr"and q.qid = $qid").query[Quote]

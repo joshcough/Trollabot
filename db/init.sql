@@ -2,39 +2,50 @@ ALTER DATABASE trollabot OWNER TO postgres;
 
 \connect trollabot
 
-
-CREATE TABLE public.streams (
-    id SERIAL PRIMARY KEY,
-    name character varying NOT NULL,
-    joined boolean NOT NULL,
-    CONSTRAINT unique_stream_name UNIQUE (name)
+CREATE TABLE streams (
+  name character varying NOT NULL,
+  joined boolean NOT NULL,
+  added_by text NOT NULL,
+  added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (name)
 );
 
-CREATE TABLE public.quotes (
-    id SERIAL PRIMARY KEY,
-    qid integer NOT NULL,
-    text character varying NOT NULL,
-    channel int NOT NULL references streams(id),
-    added_by text NOT NULL,
-    added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted bool NOT NULL DEFAULT false,
-    deleted_by text,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid)
+CREATE TABLE quotes (
+  id SERIAL PRIMARY KEY,
+  qid integer NOT NULL,
+  text character varying NOT NULL,
+  channel text NOT NULL references streams(name),
+  added_by text NOT NULL,
+  added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  deleted bool NOT NULL DEFAULT false,
+  deleted_by text,
+  deleted_at TIMESTAMP WITH TIME ZONE,
+  CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid),
+  CONSTRAINT unique_quote_channel_and_text UNIQUE (channel, text)
 );
 
-CREATE TABLE public.counters (
-    id SERIAL PRIMARY KEY,
-    name character varying NOT NULL,
-    current_count int NOT NULL,
-    channel integer NOT NULL references streams(id),
-    CONSTRAINT unique_counter_channel UNIQUE (channel, name)
+CREATE TABLE counters (
+  name character varying NOT NULL,
+  current_count int NOT NULL,
+  channel text NOT NULL references streams(name),
+  added_by text NOT NULL,
+  added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (channel, name)
 );
 
-COPY public.streams (id, name, joined) FROM stdin;
-1	daut	f
-2	jonslow_	f
-3	artofthetroll	t
+CREATE TABLE scores (
+  channel text NOT NULL references streams(name),
+  player1 character varying NULL,
+  player2 character varying NULL,
+  player1_score int NOT NULL,
+  player2_score int NOT NULL,
+  PRIMARY KEY (channel)
+);
+
+COPY public.streams (id, name, joined, added_by) FROM stdin;
+1	daut	f trollabot
+2	jonslow_	f trollabot
+3	artofthetroll	t trollabot
 \.
 
 SELECT pg_catalog.setval('public.streams_id_seq', 3, true);

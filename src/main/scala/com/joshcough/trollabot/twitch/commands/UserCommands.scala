@@ -12,7 +12,7 @@ object UserCommands {
   lazy val userCommandCommands: List[BotCommand] =
     List(addUserCommandCommand, editUserCommandCommand, deleteUserCommandCommand)
 
-  trait UserCommandAction extends Action
+  sealed trait UserCommandAction extends Action
 
   case class GetUserCommandAction(
       channelName: ChannelName,

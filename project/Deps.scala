@@ -23,6 +23,7 @@ object Deps {
     "com.github.pureconfig" %% "pureconfig" % PureConfigVersion,
     "com.github.pureconfig" %% "pureconfig-cats-effect" % PureConfigVersion,
     "com.github.pureconfig" %% "pureconfig-http4s" % PureConfigVersion,
+    "com.mrdziuban" %% "scalacheck-magnolia" % "0.5.0" % "test,it",
     "eu.timepit" %% "refined" % RefinedVersion,
     "eu.timepit" %% "refined-pureconfig" % RefinedVersion,
     "io.7mind.izumi" %% "logstage-core" % LogStageVersion,
@@ -38,6 +39,7 @@ object Deps {
     "org.http4s" %% "http4s-ember-client" % Http4sVersion,
     // TODO: i feel like i'll need this one soon so leaving it here
     //"org.http4s"            %% "http4s-prometheus-metrics" % Http4sVersion,
+    "org.scalacheck" %% "scalacheck" % "1.15.4" % "test,it",
     "org.scalameta" %% "svm-subs" % "20.2.0",
     "org.scalameta" %% "munit" % MunitVersion % "test,it",
     "org.scalatest" %% "scalatest" % "3.2.6" % Test,

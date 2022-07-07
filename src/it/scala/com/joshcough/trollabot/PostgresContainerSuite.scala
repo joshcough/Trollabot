@@ -4,20 +4,24 @@ import cats.effect.IO
 import cats.implicits._
 import com.dimafeng.testcontainers.PostgreSQLContainer
 import com.dimafeng.testcontainers.munit.TestContainersForAll
-import com.joshcough.trollabot.api.{CounterName, CountersDb, Quote, QuotesDb, Stream, StreamsDb}
+import com.joshcough.trollabot.api.{CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb}
 import doobie.implicits._
 import doobie.{ConnectionIO, Transactor}
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.testcontainers.utility.DockerImageName
 
-import java.sql.DriverManager
+import java.sql.{DriverManager, Timestamp}
 
 case class QuoteException(msg: String) extends RuntimeException
 
 object QuotesData {
-  val daut: Stream = Stream(ChannelName("daut"), joined = false)
-  val jonslow: Stream = Stream(ChannelName("jonslow_"), joined = false)
-  val artoftroll: Stream = Stream(ChannelName("artofthetroll"), joined = true)
+
+  val userName: ChatUserName = ChatUserName("artofthetroll")
+  val ts: Timestamp = Timestamp.valueOf("2022-07-04 06:42:00")
+
+  val daut: Stream = Stream(ChannelName("daut"), joined = false, userName, ts)
+  val jonslow: Stream = Stream(ChannelName("jonslow_"), joined = false, userName, ts)
+  val artoftroll: Stream = Stream(ChannelName("artofthetroll"), joined = true, userName, ts)
   val streams: List[Stream] = List(daut, jonslow, artoftroll)
 
   val dautQuotes: List[String] = List(
@@ -51,6 +55,9 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
       _ <- CountersDb.incrementCounter(dautChannel, CounterName("housed"))
     } yield ()
 
+  def insertDautScore: ConnectionIO[Score] =
+    ScoresDb.setAll(dautChannel, "daut", 4, "viper", 0)
+
   override def startContainers(): Containers = {
     val myImage = DockerImageName.parse("postgres:12-alpine").
       asCompatibleSubstituteFor("postgres")
@@ -63,7 +70,7 @@ trait PostgresContainerSuite extends CatsEffectSuite with ScalaCheckEffectSuite 
     _ <- TestQueries.recreateSchema
     _ <- TestQueries.deleteAllQuotes.run
     _ <- TestQueries.deleteAllStreams.run
-    _ <- streams.map(s => StreamsDb.insertStream(s.name)).sequence
+    _ <- streams.map(s => StreamsDb.insertStream(s.name, joined=s.joined, userName)).sequence
   } yield ()
 
   def withXa[A](f: Transactor[IO] => IO[A]): IO[A] =

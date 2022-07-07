@@ -11,7 +11,6 @@ import java.sql.Timestamp
 case class CounterName(name: String) extends AnyVal
 
 case class Counter(
-    id: Option[Int],
     name: CounterName,
     count: Int,
     channel: ChannelName,

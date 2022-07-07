@@ -16,10 +16,10 @@ object Scores {
   }
 
   case class GetScore() extends ScoreArg {
-    override def run[F[_] : Monad](api: Api[F])(channelName: ChannelName): Stream[F, Response] =
+    override def run[F[_]: Monad](api: Api[F])(channelName: ChannelName): Stream[F, Response] =
       getScore(api)(channelName)
   }
-  case class SetScore(player1Score: Int, player2Score: Int) extends ScoreArg{
+  case class SetScore(player1Score: Int, player2Score: Int) extends ScoreArg {
     def run[F[_]: Monad](api: Api[F])(channelName: ChannelName): Stream[F, Response] =
       setScore(api)(channelName, player1Score, player2Score)
   }
@@ -54,8 +54,8 @@ object Scores {
     // this is dumb, it should really be a ScoreAction.
     def perms(a: ScoreAction): Permission =
       a.scoreArg match {
-        case GetScore()  => Anyone
-        case _           => Mod
+        case GetScore() => Anyone
+        case _          => Mod
       }
     BotCommand[ScoreArg, ScoreAction]("!score", scoreParser, perms)((channelName, _, scoreArg) =>
       ScoreAction(channelName, scoreArg)

@@ -8,7 +8,6 @@ import doobie.implicits._
 import doobie.util.transactor.Transactor
 
 case class Score(
-    id: Option[Int],
     channel: ChannelName,
     player1: Option[String],
     player2: Option[String],
@@ -20,7 +19,7 @@ case class Score(
 }
 
 object Score {
-  def empty(channelName: ChannelName) = Score(None, channelName, None, None, 0, 0)
+  def empty(channelName: ChannelName) = Score(channelName, None, None, 0, 0)
 }
 
 trait Scores[F[_]] {

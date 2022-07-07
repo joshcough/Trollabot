@@ -1,12 +1,19 @@
 package com.joshcough.trollabot.twitch.commands
 
 import cats.Monad
+import cats.implicits.toFunctorOps
 import com.joshcough.trollabot.ParserCombinators._
 import com.joshcough.trollabot.api.{Api, UserCommandName}
+import com.joshcough.trollabot.twitch.commands.Counters.CounterAction
+import com.joshcough.trollabot.twitch.commands.Quotes.QuoteAction
+import com.joshcough.trollabot.twitch.commands.Scores.ScoreAction
+import com.joshcough.trollabot.twitch.commands.Streams.StreamsAction
+import com.joshcough.trollabot.twitch.commands.UserCommands.UserCommandAction
 import com.joshcough.trollabot.{BuildInfo, ChannelName, ChatUser}
 import doobie.implicits._
 import doobie.ConnectionIO
 import fs2.Stream
+import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto._
 import io.circe.syntax._
 
@@ -32,6 +39,33 @@ trait Action {
   def run[F[_]: Monad](api: Api[F]): Stream[F, Response]
 }
 
+object Action {
+
+  implicit def encAction: Encoder[Action] = {
+    case q: StreamsAction     => q.asJson
+    case q: QuoteAction       => q.asJson
+    case q: CounterAction     => q.asJson
+    case q: ScoreAction       => q.asJson
+    case q: UserCommandAction => q.asJson
+    case q: HelpAction        => q.asJson
+    case q: BuildInfoAction   => q.asJson
+    case _                    => sys.error("impossible")
+  }
+
+  implicit val decAction: Decoder[Action] = {
+    List[Decoder[Action]](
+      Decoder[StreamsAction].widen,
+      Decoder[QuoteAction].widen,
+      Decoder[CounterAction].widen,
+      Decoder[ScoreAction].widen,
+      Decoder[ScoreAction].widen,
+      Decoder[UserCommandAction].widen,
+      Decoder[HelpAction].widen,
+      Decoder[BuildInfoAction].widen
+    ).reduceLeft(_ or _)
+  }
+}
+
 case class HelpAction(commandName: String) extends Action {
   override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
     help(commandName, Commands.commands)
@@ -45,7 +79,7 @@ case class HelpAction(commandName: String) extends Action {
       case Some(c) => c.toString
     }))
 }
-case object BuildInfoAction extends Action {
+case class BuildInfoAction() extends Action {
   override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
     Stream.emit(RespondWith(BuildInfo().asJson.noSpaces))
 }
@@ -56,7 +90,7 @@ trait BotCommand {
   val name: String
   val parser: Parser[A]
   val permission: ActionType => Permission
-  def mkAction(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
+  def parse(channelName: ChannelName, chatUser: ChatUser, a: A): ActionType
 
   override def toString: String = s"$name ${parser.describe}"
   def help: String = toString // TODO: maybe we change this around later, but its fine for now.
@@ -67,7 +101,7 @@ trait BotCommand {
       args: String
   ): Either[String, Option[Action]] =
     parser(args.trim).toEither.map { a =>
-      val action = mkAction(channelName, chatUser, a)
+      val action = parse(channelName, chatUser, a)
       if (hasPermssion(channelName, chatUser, action)) Some(action) else None
     }
 
@@ -113,7 +147,7 @@ object BotCommand {
       val name: String = cmdName
       val permission: ActionType => Permission = perm
       val parser: Parser[P] = cmdParser
-      def mkAction(channelName: ChannelName, chatUser: ChatUser, t: P): AT =
+      def parse(channelName: ChannelName, chatUser: ChatUser, t: P): AT =
         f(channelName, chatUser, t)
     }
 }
@@ -129,9 +163,7 @@ object BuiltinCommands {
     )
 
   val buildInfoCommand: BotCommand =
-    BotCommand[Unit, BuildInfoAction.type]("!buildInfo", empty, _ => God)((_, _, _) =>
-      BuildInfoAction
-    )
+    BotCommand[Unit, BuildInfoAction]("!buildInfo", empty, _ => God)((_, _, _) => BuildInfoAction())
 
   val builtinCommands: List[BotCommand] = List(
     helpCommand,

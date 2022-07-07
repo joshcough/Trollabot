@@ -22,4 +22,3 @@ case class ChatUser(
     badges: Map[String, String]
 )
 case class ChannelName(name: String) extends AnyVal
-

@@ -16,7 +16,6 @@ case class UserCommandName(namePotentiallyWithBang: String) extends AnyVal {
 }
 
 case class UserCommand(
-    id: Option[Int],
     name: UserCommandName,
     body: String,
     channel: ChannelName,
