@@ -20,7 +20,7 @@ import org.http4s.{EntityDecoder, Request}
 class WebSuite extends PostgresContainerSuite {
 
   val qs@List(q1, q2, q3, q4, q5) = dautQuotes.zipWithIndex.map { case (s, i) =>
-    AssertableQuote(Some(i + 1), i, s, daut.name, ChatUserName("jc"), deleted = false, None)
+    AssertableQuote(i, s, daut.name, ChatUserName("jc"), deleted = false, None)
   }
 
   val c1: AssertableCounter = AssertableCounter(CounterName("housed"), 2, dautChannel, ChatUserName("jc"))

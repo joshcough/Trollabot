@@ -11,7 +11,6 @@ import doobie.util.transactor.Transactor
 import java.sql.Timestamp
 
 case class Quote(
-    id: Option[Int],
     qid: Int,
     text: String,
     channel: ChannelName,

@@ -25,7 +25,6 @@ object TestQueries {
   val createQuotesTable: Update0 =
     sql"""
       CREATE TABLE quotes (
-        id SERIAL PRIMARY KEY,
         qid integer NOT NULL,
         text character varying NOT NULL,
         channel text NOT NULL references streams(name),
@@ -34,7 +33,7 @@ object TestQueries {
         deleted bool NOT NULL DEFAULT false,
         deleted_by text,
         deleted_at TIMESTAMP WITH TIME ZONE,
-        CONSTRAINT unique_quote_channel_and_qid UNIQUE (channel, qid),
+        PRIMARY KEY (channel, qid),
         CONSTRAINT unique_quote_channel_and_text UNIQUE (channel, text)
       )""".update
 

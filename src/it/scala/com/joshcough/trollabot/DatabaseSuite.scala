@@ -77,8 +77,8 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         qs <- QuotesDb.searchQuotes(daut.name, "%man%").compile.toList
         expected = List(
-          AssertableQuote(Some(2),1,"come to my healing spot man!",daut.name,ChatUserName("jc"), deleted = false, None),
-          AssertableQuote(Some(5),4,"close us man!",daut.name,ChatUserName("jc"), deleted = false, None)
+          AssertableQuote(1,"come to my healing spot man!",daut.name,ChatUserName("jc"), deleted = false, None),
+          AssertableQuote(4,"close us man!",daut.name,ChatUserName("jc"), deleted = false, None)
         )
       } yield assertQuotes(qs, expected)
     }
@@ -153,7 +153,7 @@ class DatabaseSuite extends PostgresContainerSuite {
 }
 
 case class AssertableStream(name: ChannelName, joined: Boolean, addedBy: ChatUserName)
-case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: ChannelName,
+case class AssertableQuote(qid: Int, text: String, channel: ChannelName,
                            addedBy: ChatUserName,  deleted: Boolean, deletedBy: Option[ChatUserName])
 case class AssertableCounter(name: CounterName, count: Int, channel: ChannelName, addedBy: ChatUserName)
 case class AssertableUserCommand(name: UserCommandName, body: String, channel: ChannelName, addedBy: ChatUserName)
@@ -169,7 +169,7 @@ object AssertableStream {
 
 object AssertableQuote {
   def apply(q: Quote): AssertableQuote =
-    AssertableQuote(q.id, q.qid, q.text, q.channel, q.addedBy, q.deleted, q.deletedBy)
+    AssertableQuote(q.qid, q.text, q.channel, q.addedBy, q.deleted, q.deletedBy)
   def assertQuotes(actual: List[Quote], expected: List[AssertableQuote]): Unit =
     munit.Assertions.assertEquals(actual.map(AssertableQuote(_)), expected)
 
