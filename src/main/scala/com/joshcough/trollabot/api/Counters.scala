@@ -2,6 +2,7 @@ package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
 import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
+import com.joshcough.trollabot.db.queries.{Counters => CounterQueries}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -46,33 +47,6 @@ object Counters {
       def incrementCounter(channelName: ChannelName, counterName: CounterName): F[Option[Counter]] =
         CountersDb.incrementCounter(channelName, counterName).transact(xa)
     }
-}
-
-object CounterQueries {
-
-  import doobie.implicits.javasql._
-
-  def insertCounter(
-      counterName: CounterName,
-      username: ChatUserName,
-      channelName: ChannelName
-  ): Query0[Counter] =
-    sql"""insert into counters (name, current_count, channel, added_by)
-          values(${counterName.name}, 0, ${channelName.name}, ${username.name})
-          returning *""".query[Counter]
-
-  def counterValue(counterName: CounterName, channelName: ChannelName): Query0[Int] =
-    sql"""select current_count from counters
-          where channel = ${channelName.name} and name = ${counterName.name}""".query[Int]
-
-  def selectAllCountersForStream(channelName: ChannelName): Query0[Counter] =
-    sql"""select * from counters where channel = ${channelName.name}""".query[Counter]
-
-  def incrementCounter(counterName: CounterName, channelName: ChannelName): Query0[Counter] =
-    sql"""update counters
-          set current_count = current_count + 1
-          where channel = ${channelName.name} and name = ${counterName.name}
-          returning *""".query[Counter]
 }
 
 object CountersDb extends Counters[ConnectionIO] {

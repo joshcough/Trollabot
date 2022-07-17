@@ -4,6 +4,7 @@ import cats.Show
 import cats.effect.MonadCancelThrow
 import cats.implicits._
 import com.joshcough.trollabot.{ChannelName, ChatUserName}
+import com.joshcough.trollabot.db.queries.{Quotes => QuoteQueries}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -87,58 +88,6 @@ object Quotes {
       def countQuotesInStream(channelName: ChannelName): F[Count] =
         QuotesDb.countQuotesInStream(channelName).transact(xa)
     }
-}
-
-object QuoteQueries {
-
-  import doobie.implicits.javasql._
-
-  def getRandomQuoteForStream(channelName: ChannelName): Query0[Quote] =
-    fr"select q.* from quotes q where q.channel = ${channelName.name} order by random() limit 1"
-      .query[Quote]
-
-  val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
-  def countQuotesInStream(channelName: ChannelName): Query0[Int] =
-    fr"select count(*) from quotes q where q.channel = ${channelName.name}".query[Int]
-
-  def getAllQuotesForStream(channelName: ChannelName): Query0[Quote] =
-    selectQuotes(channelName).query[Quote]
-
-  def searchQuotesForStream(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by q.qid ASC").query[Quote]
-  // NOTE: to print out the sql being ran, use this:
-  // .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
-  // instead of .query[Quote]
-
-  def searchQuotesForStream_Random(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by random() limit 1").query[Quote]
-
-  def getQuoteByQid(channelName: ChannelName, qid: Int): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.qid = $qid").query[Quote]
-
-  def getQuoteByText(channelName: ChannelName, text: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text = $text").query[Quote]
-
-  def selectQuotes(channelName: ChannelName): Fragment =
-    fr"select q.* from quotes q where q.channel = ${channelName.name}"
-
-  // TODO: instead of deleting - mark as deleted, by whom and when
-  def deleteQuote(channelName: ChannelName, qid: Int): Update0 =
-    sql"""delete from quotes q where q.channel = ${channelName.name} and q.qid = $qid""".update
-
-  def nextQidForChannel_(channelName: ChannelName): Fragment =
-    fr"select coalesce(max(q.qid) + 1, 0) from quotes q where q.channel = ${channelName.name}"
-
-  def nextQidForChannel(channelName: ChannelName): Query0[Int] =
-    nextQidForChannel_(channelName).query[Int]
-
-  // TODO: what if quote already has an ID? thats bad right we need to catch that, because it shouldn't.
-  def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): Query0[Quote] =
-    (fr"insert into quotes (qid, text, channel, added_by)" ++
-      fr"select" ++
-      fr"(" ++ nextQidForChannel_(channelName) ++ fr")," ++
-      fr"""$text, ${channelName.name}, ${username.name} returning *""").query[Quote]
-
 }
 
 object QuotesDb extends Quotes[ConnectionIO] {

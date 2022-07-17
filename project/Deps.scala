@@ -13,6 +13,8 @@ object Deps {
   val PureConfigVersion = "0.17.1"
   val EnumeratumCirceVersion = "1.7.0"
   val RefinedVersion = "0.9.29"
+  val MagnoliaVersion = "0.5.0"
+  val ScalaCheckVersion = "1.15.4"
 
   val deps = Seq(
     "ch.qos.logback" % "logback-classic" % LogbackVersion % Runtime,
@@ -23,7 +25,7 @@ object Deps {
     "com.github.pureconfig" %% "pureconfig" % PureConfigVersion,
     "com.github.pureconfig" %% "pureconfig-cats-effect" % PureConfigVersion,
     "com.github.pureconfig" %% "pureconfig-http4s" % PureConfigVersion,
-    "com.mrdziuban" %% "scalacheck-magnolia" % "0.5.0" % "test,it",
+    "com.mrdziuban" %% "scalacheck-magnolia" % MagnoliaVersion % "test,it",
     "eu.timepit" %% "refined" % RefinedVersion,
     "eu.timepit" %% "refined-pureconfig" % RefinedVersion,
     "io.7mind.izumi" %% "logstage-core" % LogStageVersion,
@@ -33,16 +35,16 @@ object Deps {
     "io.circe" %% "circe-parser" % CirceVersion,
     "io.circe" %% "circe-shapes" % CirceVersion,
     "io.circe" %% "circe-refined" % CirceVersion,
+    "org.flywaydb" % "flyway-core" % "7.2.0",
     "org.http4s" %% "http4s-circe" % Http4sVersion,
     "org.http4s" %% "http4s-dsl" % Http4sVersion,
     "org.http4s" %% "http4s-ember-server" % Http4sVersion,
     "org.http4s" %% "http4s-ember-client" % Http4sVersion,
     // TODO: i feel like i'll need this one soon so leaving it here
     //"org.http4s"            %% "http4s-prometheus-metrics" % Http4sVersion,
-    "org.scalacheck" %% "scalacheck" % "1.15.4" % "test,it",
+    "org.scalacheck" %% "scalacheck" % ScalaCheckVersion % "test,it",
     "org.scalameta" %% "svm-subs" % "20.2.0",
     "org.scalameta" %% "munit" % MunitVersion % "test,it",
-    "org.scalatest" %% "scalatest" % "3.2.6" % Test,
     "org.tpolecat" %% "doobie-core" % DoobieVersion,
     "org.tpolecat" %% "doobie-postgres" % DoobieVersion,
     "org.tpolecat" %% "doobie-munit" % DoobieVersion,

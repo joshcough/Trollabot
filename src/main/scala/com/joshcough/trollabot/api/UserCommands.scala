@@ -2,6 +2,7 @@ package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
 import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
+import com.joshcough.trollabot.db.queries.{UserCommands => UserCommandQueries}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
@@ -71,45 +72,6 @@ object UserCommands {
       def deleteUserCommand(channelName: ChannelName, commandName: UserCommandName): F[Boolean] =
         UserCommandsDb.deleteUserCommand(channelName, commandName).transact(xa)
     }
-}
-object UserCommandQueries {
-
-  import doobie.implicits.javasql._
-
-  def insertUserCommand(
-      userCommandName: UserCommandName,
-      body: String,
-      username: ChatUserName,
-      channelName: ChannelName
-  ): Query0[UserCommand] =
-    sql"""insert into user_commands (name, body, channel, added_by)
-          values(${userCommandName.name}, $body, ${channelName.name}, ${username.name})
-          returning *""".query[UserCommand]
-
-  def selectUserCommand(
-      channelName: ChannelName,
-      userCommandName: UserCommandName
-  ): Query0[UserCommand] =
-    sql"""select * from user_commands
-          where channel = ${channelName.name} and name = ${userCommandName.name}"""
-      .query[UserCommand]
-
-  def selectAllUserCommandsForStream(channelName: ChannelName): Query0[UserCommand] =
-    sql"""select * from user_commands where channel = ${channelName.name}""".query[UserCommand]
-
-  def editUserCommand(
-      channelName: ChannelName,
-      userCommandName: UserCommandName,
-      body: String
-  ): Query0[UserCommand] =
-    sql"""update user_commands set body = $body
-          where channel = ${channelName.name} and name = ${userCommandName.name}
-          returning *
-          """.query[UserCommand]
-
-  def deleteUserCommand(channelName: ChannelName, userCommandName: UserCommandName): Update0 =
-    sql"""delete from user_commands
-          where channel = ${channelName.name} and name = ${userCommandName.name}""".update
 }
 
 object UserCommandsDb extends UserCommands[ConnectionIO] {
