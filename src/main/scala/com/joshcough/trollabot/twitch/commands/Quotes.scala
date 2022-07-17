@@ -16,7 +16,7 @@ object Quotes {
     delQuoteCommand
   )
 
-  trait QuoteAction extends Action
+  sealed trait QuoteAction extends Action
 
   sealed trait GetQuoteAction extends QuoteAction
   case class GetExactQuoteAction(channelName: ChannelName, qid: Int) extends GetQuoteAction {

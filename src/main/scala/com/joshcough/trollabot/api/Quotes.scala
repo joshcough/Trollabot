@@ -4,16 +4,14 @@ import cats.Show
 import cats.effect.MonadCancelThrow
 import cats.implicits._
 import com.joshcough.trollabot.{ChannelName, ChatUserName}
+import com.joshcough.trollabot.db.queries.{Quotes => QuoteQueries}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.{Decoder, Encoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 import java.sql.Timestamp
 
 case class Quote(
-    id: Option[Int],
     qid: Int,
     text: String,
     channel: ChannelName,
@@ -27,9 +25,6 @@ case class Quote(
 }
 
 object Quote {
-  import com.joshcough.trollabot.TimestampInstances._
-  implicit val quoteDecoder: Decoder[Quote] = deriveDecoder[Quote]
-  implicit val quoteEncoder: Encoder[Quote] = deriveEncoder[Quote]
   implicit val quoteShow: Show[Quote] = Show.fromToString
 }
 
@@ -95,57 +90,6 @@ object Quotes {
     }
 }
 
-object QuoteQueries {
-
-  import doobie.implicits.javasql._
-
-  def getRandomQuoteForStream(channelName: ChannelName): Query0[Quote] =
-    fr"select q.* from quotes q where q.channel = ${channelName.name} order by random() limit 1"
-      .query[Quote]
-
-  val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
-  def countQuotesInStream(channelName: ChannelName): Query0[Int] =
-    fr"select count(*) from quotes q where q.channel = ${channelName.name}".query[Int]
-
-  def getAllQuotesForStream(channelName: ChannelName): Query0[Quote] =
-    selectQuotes(channelName).query[Quote]
-
-  def searchQuotesForStream(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by q.qid ASC")
-      .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
-
-  def searchQuotesForStream_Random(channelName: ChannelName, like: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text LIKE $like order by random() limit 1")
-      .queryWithLogHandler[Quote](LogHandler.jdkLogHandler)
-
-  def getQuoteByQid(channelName: ChannelName, qid: Int): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.qid = $qid").query[Quote]
-
-  def getQuoteByText(channelName: ChannelName, text: String): Query0[Quote] =
-    (selectQuotes(channelName) ++ fr"and q.text = $text").query[Quote]
-
-  def selectQuotes(channelName: ChannelName): Fragment =
-    fr"select q.* from quotes q where q.channel = ${channelName.name}"
-
-  // TODO: instead of deleting - mark as deleted, by whom and when
-  def deleteQuote(channelName: ChannelName, qid: Int): Update0 =
-    sql"""delete from quotes q where q.channel = ${channelName.name} and q.qid = $qid""".update
-
-  def nextQidForChannel_(channelName: ChannelName): Fragment =
-    fr"select coalesce(max(q.qid) + 1, 0) from quotes q where q.channel = ${channelName.name}"
-
-  def nextQidForChannel(channelName: ChannelName): Query0[Int] =
-    nextQidForChannel_(channelName).query[Int]
-
-  // TODO: what if quote already has an ID? thats bad right we need to catch that, because it shouldn't.
-  def insertQuote(text: String, username: ChatUserName, channelName: ChannelName): Query0[Quote] =
-    (fr"insert into quotes (qid, text, channel, added_by)" ++
-      fr"select" ++
-      fr"(" ++ nextQidForChannel_(channelName) ++ fr")," ++
-      fr"""$text, ${channelName.name}, ${username.name} returning *""").query[Quote]
-
-}
-
 object QuotesDb extends Quotes[ConnectionIO] {
   def getQuote(channelName: ChannelName, qid: Int): ConnectionIO[Option[Quote]] =
     QuoteQueries.getQuoteByQid(channelName, qid).option
@@ -178,8 +122,8 @@ object QuotesDb extends Quotes[ConnectionIO] {
   def deleteQuote(channelName: ChannelName, qid: Int): ConnectionIO[Boolean] =
     QuoteQueries.deleteQuote(channelName, qid: Int).run.map(_ > 0)
 
-  def countQuotes: ConnectionIO[Count] = QuoteQueries.countQuotes.unique.map(Count(_))
+  def countQuotes: ConnectionIO[Count] = QuoteQueries.countQuotes.unique.map(Count)
 
   def countQuotesInStream(channelName: ChannelName): ConnectionIO[Count] =
-    QuoteQueries.countQuotesInStream(channelName).unique.map(Count(_))
+    QuoteQueries.countQuotesInStream(channelName).unique.map(Count)
 }

@@ -2,16 +2,8 @@ package com.joshcough.trollabot.api
 
 import cats.effect.MonadCancelThrow
 import doobie.{ConnectionIO, Transactor}
-import io.circe.Encoder
-import io.circe.derivation.deriveEncoder
-import org.http4s.EntityEncoder
-import org.http4s.circe.jsonEncoderOf
 
 case class Count(i: Int)
-object Count {
-  implicit val countEncoder: Encoder[Count] = deriveEncoder[Count]
-  implicit def countEntityEncoder[F[_]]: EntityEncoder[F, Count] = jsonEncoderOf
-}
 
 case class Api[F[_]](
     streams: Streams[F],

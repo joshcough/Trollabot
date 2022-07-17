@@ -3,14 +3,12 @@ package com.joshcough.trollabot.api
 import cats.effect.MonadCancelThrow
 import cats.implicits.catsSyntaxApplicativeId
 import com.joshcough.trollabot.ChannelName
+import com.joshcough.trollabot.db.queries.{Scores => ScoreQueries}
 import doobie._
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import io.circe.{Decoder, Encoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 case class Score(
-    id: Option[Int],
     channel: ChannelName,
     player1: Option[String],
     player2: Option[String],
@@ -22,9 +20,7 @@ case class Score(
 }
 
 object Score {
-  def empty(channelName: ChannelName) = Score(None, channelName, None, None, 0, 0)
-  implicit val scoreDecoder: Decoder[Score] = deriveDecoder[Score]
-  implicit val scoreEncoder: Encoder[Score] = deriveEncoder[Score]
+  def empty(channelName: ChannelName) = Score(channelName, None, None, 0, 0)
 }
 
 trait Scores[F[_]] {
@@ -67,45 +63,6 @@ object Scores {
       def getScore(channelName: ChannelName): F[Score] =
         ScoresDb.getScore(channelName).transact(xa)
     }
-}
-
-object ScoreQueries {
-
-  def insertChannel(channelName: ChannelName): Update0 =
-    sql"""insert into scores (channel, player1_score, player2_score)
-         values (${channelName.name}, 0, 0)""".update
-
-  def setPlayer1(channelName: ChannelName, player1: String): Query0[Score] =
-    updateScores(channelName, fr"set player1 = $player1")
-
-  def setPlayer2(channelName: ChannelName, player2: String): Query0[Score] =
-    updateScores(channelName, fr"set player2 = $player2")
-
-  def setPlayer1Score(channelName: ChannelName, player1Score: Int): Query0[Score] =
-    updateScores(channelName, fr"set player1_score = $player1Score")
-
-  def setPlayer2Score(channelName: ChannelName, player2Score: Int): Query0[Score] =
-    updateScores(channelName, fr"set player2_score = $player2Score")
-
-  def setScore(channelName: ChannelName, player1Score: Int, player2Score: Int): Query0[Score] =
-    updateScores(channelName, fr"set player1_score = $player1Score, player2_score = $player2Score")
-
-  def setAll(
-      channelName: ChannelName,
-      player1: String,
-      player1Score: Int,
-      player2: String,
-      player2Score: Int
-  ): Query0[Score] =
-    updateScores(channelName, fr"""set player1 = $player1, player2 = $player2,
-               player1_score = $player1Score, player2_score = $player2Score""")
-
-  def getScore(channelName: ChannelName): Query0[Score] =
-    sql"""select * from scores where channel = ${channelName.name}""".query[Score]
-
-  def updateScores(channelName: ChannelName, fragment: Fragment): Query0[Score] =
-    (fr"update scores" ++ fragment ++ fr"""where channel = ${channelName.name} returning *""")
-      .query[Score]
 }
 
 object ScoresDb extends Scores[ConnectionIO] {

@@ -18,19 +18,19 @@ class CommandsSuite extends PostgresContainerSuite {
   val commandRunner = CommandRunner(Commands.commands)
 
   test("commands parse") {
-    assertEquals(parse("!join daut"), JoinAction(ChannelName("daut")))
+    assertEquals(parse("!join daut"), JoinAction(ChannelName("daut"), userName))
     assertEquals(parse("!part"), PartAction(channel))
     assertEquals(parse("!addQuote hi"), AddQuoteAction(channel, user, "hi"))
     assertEquals(parse("!delQuote 0"), DelQuoteAction(channel, 0))
     assertEquals(parse("!quote 0"), GetExactQuoteAction(channel, 0))
     assertEquals(parse("!quote"), GetRandomQuoteAction(channel))
-    assertEquals(parse("!printStreams"), PrintStreamsAction)
+    assertEquals(parse("!printStreams"), PrintStreamsAction())
     assertEquals(parse("!addCounter x"), AddCounterAction(channel, user, CounterName("x")))
     assertEquals(parse("!inc x"), IncCounterAction(channel, CounterName("x")))
     assertEquals(parse("!help !quote"), HelpAction("!quote"))
     assertEquals(parse("!search %hell%"), SearchQuotesAction(channel, "%hell%"))
-    assertEquals(parse("!buildInfo"), BuildInfoAction)
-    assertEquals(parse("!score"), ScoreAction(channel, GetScore))
+    assertEquals(parse("!buildInfo"), BuildInfoAction())
+    assertEquals(parse("!score"), ScoreAction(channel, GetScore()))
     assertEquals(parse("!score 2 3"), ScoreAction(channel, SetScore(2, 3)))
     assertEquals(parse("!score daut 4 viper 0"), ScoreAction(channel, SetAll("daut", "viper", 4, 0)))
     assertEquals(parse("!player artofthetroll"), SetPlayerAction(channel, "artofthetroll"))
@@ -43,7 +43,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("join command joins") {
     withDb {
       for {
-        response <- run(JoinAction(channel))
+        response <- run(JoinAction(channel, userName))
       } yield assertEquals(response, List(Join(channel), RespondWith("Joining artofthetroll!")))
     }
   }
@@ -111,13 +111,13 @@ class CommandsSuite extends PostgresContainerSuite {
 
   test("print streams command prints streams") {
     withDb {
-      val expectedText =
-        """{"name":{"name":"daut"},"joined":false},
-          |{"name":{"name":"jonslow_"},"joined":false},
-          |{"name":{"name":"artofthetroll"},"joined":false}""".stripMargin.replace("\n", "")
       for {
-        response <- run(PrintStreamsAction)
-      } yield assertEquals(response, List(RespondWith(expectedText)))
+        responses <- run(PrintStreamsAction())
+        List(RespondWith(streams)) = responses
+      } yield {
+        val f = (s:String) => assert(streams.contains(s))
+        f("daut") && f("jonslow_") && f("artofthetroll")
+      }
     }
   }
 
@@ -150,7 +150,7 @@ class CommandsSuite extends PostgresContainerSuite {
   test("can set score/player/opponent")(
     withDb {
       for {
-        r0 <- run(ScoreAction(channel, GetScore))
+        r0 <- run(ScoreAction(channel, GetScore()))
         r1 <- run(SetPlayerAction(channel, "daut"))
         r2 <- run(SetOpponentAction(channel, "artofthetroll"))
         r3 <- run(ScoreAction(channel, SetScore(0, 4)))

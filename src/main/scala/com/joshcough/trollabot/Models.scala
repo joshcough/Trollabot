@@ -1,9 +1,7 @@
 package com.joshcough.trollabot
 
 import io.circe.Decoder.Result
-import io.circe.{Codec, Decoder, Encoder, HCursor, Json, derivation}
-import logstage.LogstageCodec
-import logstage.circe.LogstageCirceCodec
+import io.circe.{Decoder, Encoder, HCursor, Json}
 
 import java.sql.Timestamp
 
@@ -24,18 +22,3 @@ case class ChatUser(
     badges: Map[String, String]
 )
 case class ChannelName(name: String) extends AnyVal
-
-object ChatUserName {
-  implicit val circeCodec: Codec[ChatUserName] = derivation.deriveCodec[ChatUserName]
-  implicit val logstageCodec: LogstageCodec[ChatUserName] = LogstageCirceCodec.derived[ChatUserName]
-}
-
-object ChatUser {
-  implicit val circeCodec: Codec[ChatUser] = derivation.deriveCodec[ChatUser]
-  implicit val logstageCodec: LogstageCodec[ChatUser] = LogstageCirceCodec.derived[ChatUser]
-}
-
-object ChannelName {
-  implicit val circeCodec: Codec[ChannelName] = derivation.deriveCodec[ChannelName]
-  implicit val logstageCodec: LogstageCodec[ChannelName] = LogstageCirceCodec.derived[ChannelName]
-}

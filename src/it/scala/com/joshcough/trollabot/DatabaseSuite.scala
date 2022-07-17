@@ -1,11 +1,9 @@
 package com.joshcough.trollabot
 
 import cats.implicits._
-import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb, UserCommandName, UserCommandsDb}
+import com.joshcough.trollabot.api.{Counter, CounterName, CountersDb, Quote, QuotesDb, Score, ScoresDb, Stream, StreamsDb, UserCommand, UserCommandName, UserCommandsDb}
 import doobie.ConnectionIO
 import doobie.implicits._
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
 
 class DatabaseSuite extends PostgresContainerSuite {
 
@@ -79,17 +77,17 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         qs <- QuotesDb.searchQuotes(daut.name, "%man%").compile.toList
         expected = List(
-          AssertableQuote(Some(2),1,"come to my healing spot man!",daut.name,ChatUserName("jc"), deleted = false, None),
-          AssertableQuote(Some(5),4,"close us man!",daut.name,ChatUserName("jc"), deleted = false, None)
+          AssertableQuote(1,"come to my healing spot man!",daut.name,ChatUserName("jc"), deleted = false, None),
+          AssertableQuote(4,"close us man!",daut.name,ChatUserName("jc"), deleted = false, None)
         )
       } yield assertQuotes(qs, expected)
     }
   }
 
   test("Can create and increment counters") {
-    def c(id: Int, name: CounterName, count: Int) = AssertableCounter(Some(id), name, count, dautChannel, ChatUserName("jc"))
-    def housed(count: Int) = c(1, CounterName("housed"), count)
-    def brutal(count: Int) = c(2, CounterName("brutal"), count)
+    def c(name: CounterName, count: Int) = AssertableCounter(name, count, dautChannel, ChatUserName("jc"))
+    def housed(count: Int) = c(CounterName("housed"), count)
+    def brutal(count: Int) = c(CounterName("brutal"), count)
     withDb {
       for {
         // create a counter called "housed" and increment it twice
@@ -120,13 +118,13 @@ class DatabaseSuite extends PostgresContainerSuite {
         s4 <- ScoresDb.setPlayer2Score(dautChannel, 1)
         s5 <- ScoresDb.setScore(dautChannel, 3, 2)
         s6 <- ScoresDb.setAll(dautChannel, "viper", 4, "hera", 0)
-      } yield assertEquals(s0, Score(Some(1), dautChannel, None, None, 0, 0)) &&
-        assertEquals(s1, Score(Some(1), dautChannel, Some("daut"), None, 0, 0)) &&
-        assertEquals(s2, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 0, 0)) &&
-        assertEquals(s3, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 1, 0)) &&
-        assertEquals(s4, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 1, 1)) &&
-        assertEquals(s5, Score(Some(1), dautChannel, Some("daut"), Some("mbl"), 3, 2)) &&
-        assertEquals(s6, Score(Some(1), dautChannel, Some("viper"), Some("hera"), 4, 0))
+      } yield assertEquals(s0, Score(dautChannel, None, None, 0, 0)) &&
+        assertEquals(s1, Score(dautChannel, Some("daut"), None, 0, 0)) &&
+        assertEquals(s2, Score(dautChannel, Some("daut"), Some("mbl"), 0, 0)) &&
+        assertEquals(s3, Score(dautChannel, Some("daut"), Some("mbl"), 1, 0)) &&
+        assertEquals(s4, Score(dautChannel, Some("daut"), Some("mbl"), 1, 1)) &&
+        assertEquals(s5, Score(dautChannel, Some("daut"), Some("mbl"), 3, 2)) &&
+        assertEquals(s6, Score(dautChannel, Some("viper"), Some("hera"), 4, 0))
     }
   }
 
@@ -154,32 +152,47 @@ class DatabaseSuite extends PostgresContainerSuite {
   }
 }
 
-case class AssertableQuote(id: Option[Int], qid: Int, text: String, channel: ChannelName,
+case class AssertableStream(name: ChannelName, joined: Boolean, addedBy: ChatUserName)
+case class AssertableQuote(qid: Int, text: String, channel: ChannelName,
                            addedBy: ChatUserName,  deleted: Boolean, deletedBy: Option[ChatUserName])
-case class AssertableCounter(id: Option[Int], name: CounterName, count: Int, channel: ChannelName, addedBy: ChatUserName)
+case class AssertableCounter(name: CounterName, count: Int, channel: ChannelName, addedBy: ChatUserName)
+case class AssertableUserCommand(name: UserCommandName, body: String, channel: ChannelName, addedBy: ChatUserName)
+
+object AssertableStream {
+  def apply(s: Stream): AssertableStream = AssertableStream(s.name, s.joined, s.addedBy)
+  def assertStreams(actual: List[Stream], expected: List[AssertableStream]): Unit =
+    munit.Assertions.assertEquals(actual.map(AssertableStream(_)), expected)
+
+  def assertStream(actual: Stream, expected: AssertableStream): Unit =
+    munit.Assertions.assertEquals(AssertableStream(actual), expected)
+}
 
 object AssertableQuote {
   def apply(q: Quote): AssertableQuote =
-    AssertableQuote(q.id, q.qid, q.text, q.channel, q.addedBy, q.deleted, q.deletedBy)
+    AssertableQuote(q.qid, q.text, q.channel, q.addedBy, q.deleted, q.deletedBy)
   def assertQuotes(actual: List[Quote], expected: List[AssertableQuote]): Unit =
     munit.Assertions.assertEquals(actual.map(AssertableQuote(_)), expected)
 
   def assertQuote(actual: Quote, expected: AssertableQuote): Unit =
     munit.Assertions.assertEquals(AssertableQuote(actual), expected)
-
-  implicit val assQuoteDecoder: Decoder[AssertableQuote] = deriveDecoder[AssertableQuote]
-  implicit val assQuoteEncoder: Encoder[AssertableQuote] = deriveEncoder[AssertableQuote]
 }
 
 object AssertableCounter {
   def apply(c: Counter): AssertableCounter =
-    AssertableCounter(c.id, c.name, c.count, c.channel, c.addedBy)
+    AssertableCounter(c.name, c.count, c.channel, c.addedBy)
   def assertCounter(actual: List[Quote], expected: List[AssertableQuote]): Unit =
     munit.Assertions.assertEquals(actual.map(AssertableQuote(_)), expected)
 
   def assertQuote(actual: Counter, expected: AssertableCounter): Unit =
     munit.Assertions.assertEquals(AssertableCounter(actual), expected)
+}
 
-  implicit val assCounterDecoder: Decoder[AssertableCounter] = deriveDecoder[AssertableCounter]
-  implicit val assCounterEncoder: Encoder[AssertableCounter] = deriveEncoder[AssertableCounter]
+object AssertableUserCommand {
+  def apply(c: UserCommand): AssertableUserCommand =
+    AssertableUserCommand(c.name, c.body, c.channel, c.addedBy)
+  def assertUserCommand(actual: List[Quote], expected: List[AssertableQuote]): Unit =
+    munit.Assertions.assertEquals(actual.map(AssertableQuote(_)), expected)
+
+  def assertQuote(actual: UserCommand, expected: AssertableUserCommand): Unit =
+    munit.Assertions.assertEquals(AssertableUserCommand(actual), expected)
 }

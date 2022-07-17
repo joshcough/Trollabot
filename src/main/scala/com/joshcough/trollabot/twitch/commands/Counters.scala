@@ -9,21 +9,23 @@ import fs2.{Pure, Stream}
 
 object Counters {
 
-  lazy val counterCommands: List[BotCommand] = List(addCounterCommand, incCounterCommand)
-
+  sealed trait CounterAction extends Action
   // TODO: eventually we want this: // !commandName ${c} words words ${c++} words words ${++c} words.
   case class AddCounterAction(
       channelName: ChannelName,
       chatUser: ChatUser,
       counterName: CounterName
-  ) extends Action {
+  ) extends CounterAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       addCounter(api)(channelName, chatUser, counterName)
   }
-  case class IncCounterAction(channelName: ChannelName, counterName: CounterName) extends Action {
+  case class IncCounterAction(channelName: ChannelName, counterName: CounterName)
+      extends CounterAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       incCounter(api)(channelName, counterName)
   }
+
+  lazy val counterCommands: List[BotCommand] = List(addCounterCommand, incCounterCommand)
 
   val counterNameParser: Parser[CounterName] = anyStringAs("counter name").map(CounterName(_))
 

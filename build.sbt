@@ -28,6 +28,7 @@ lazy val root = (project in file("."))
     IntegrationTest / fork := true,
     scalacOptions += "-deprecation",
     run / fork := true,
+    resolvers += "mrdziuban-maven" at "https://raw.githubusercontent.com/mrdziuban/maven-repo/master",
     libraryDependencies ++= Deps.deps,
     testFrameworks += new TestFramework("munit.Framework")
   )
