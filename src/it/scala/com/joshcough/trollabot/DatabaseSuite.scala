@@ -47,7 +47,7 @@ class DatabaseSuite extends PostgresContainerSuite {
         _ <- insertDautQuotes
         randomQuote <- QuotesDb.getRandomQuote(daut.name)
         rando = randomQuote.getOrElse(fail("couldn't get random quote from daut's stream"))
-        _ <- QuotesDb.deleteQuote(daut.name, rando.qid)
+        _ <- QuotesDb.deleteQuote(daut.name, rando.qid, userName)
         qs <- QuotesDb.getQuotes(daut.name).compile.toList
       } yield assertEquals (qs.size, 4)
     }

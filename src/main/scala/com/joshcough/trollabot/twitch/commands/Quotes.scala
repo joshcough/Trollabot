@@ -4,7 +4,7 @@ import cats.Monad
 import cats.implicits._
 import com.joshcough.trollabot.ParserCombinators.{int, slurp}
 import com.joshcough.trollabot.api.{Api, Quote}
-import com.joshcough.trollabot.{ChannelName, ChatUser}
+import com.joshcough.trollabot.{ChannelName, ChatUser, ChatUserName}
 import fs2.{Pure, Stream}
 
 object Quotes {
@@ -35,9 +35,10 @@ object Quotes {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
       addQuote(api)(channelName, chatUser, text)
   }
-  case class DelQuoteAction(channelName: ChannelName, n: Int) extends QuoteAction {
+  case class DelQuoteAction(channelName: ChannelName, n: Int, userName: ChatUserName)
+      extends QuoteAction {
     override def run[F[_]: Monad](api: Api[F]): Stream[F, Response] =
-      deleteQuote(api)(channelName, n)
+      deleteQuote(api)(channelName, n, userName)
   }
 
   val getQuoteCommand: BotCommand =
@@ -58,8 +59,8 @@ object Quotes {
     )
 
   val delQuoteCommand: BotCommand =
-    BotCommand[Int, DelQuoteAction]("!delQuote", int, _ => Mod)((channelName, _, n) =>
-      DelQuoteAction(channelName, n)
+    BotCommand[Int, DelQuoteAction]("!delQuote", int, _ => Mod)((channelName, u, n) =>
+      DelQuoteAction(channelName, n, u.username)
     )
 
   def addQuote[F[_]: Monad](api: Api[F])(
@@ -79,8 +80,10 @@ object Quotes {
   // TODO: maybe we should mark the quote deleted instead of deleting it
   // and then we could take the user who deleted it too.
   // we could add two new columns to quote: deletedAt and deletedBy
-  def deleteQuote[F[_]: Monad](api: Api[F])(channelName: ChannelName, n: Int): Stream[F, Response] =
-    Stream.eval(api.quotes.deleteQuote(channelName, n).map {
+  def deleteQuote[F[_]: Monad](
+      api: Api[F]
+  )(channelName: ChannelName, n: Int, userName: ChatUserName): Stream[F, Response] =
+    Stream.eval(api.quotes.deleteQuote(channelName, n, userName).map {
       case true  => RespondWith("Ok I deleted it.")
       case false => RespondWith(err(s"I couldn't delete quote $n for channel ${channelName.name}"))
     })

@@ -21,7 +21,7 @@ class CommandsSuite extends PostgresContainerSuite {
     assertEquals(parse("!join daut"), JoinAction(ChannelName("daut"), userName))
     assertEquals(parse("!part"), PartAction(channel))
     assertEquals(parse("!addQuote hi"), AddQuoteAction(channel, user, "hi"))
-    assertEquals(parse("!delQuote 0"), DelQuoteAction(channel, 0))
+    assertEquals(parse("!delQuote 0"), DelQuoteAction(channel, 0, userName))
     assertEquals(parse("!quote 0"), GetExactQuoteAction(channel, 0))
     assertEquals(parse("!quote"), GetRandomQuoteAction(channel))
     assertEquals(parse("!printStreams"), PrintStreamsAction())
@@ -101,7 +101,7 @@ class CommandsSuite extends PostgresContainerSuite {
     withDb {
       for {
         _ <- Quotes.addQuote(api)(channel, user, "hello").compile.toList
-        deleteResponse <- run(DelQuoteAction(channel, 0))
+        deleteResponse <- run(DelQuoteAction(channel, 0, userName))
         getResponse <- Quotes.getExactQuote(api)(channel, 0).compile.toList
       } yield
           assertEquals(deleteResponse, List(RespondWith("Ok I deleted it."))) &&

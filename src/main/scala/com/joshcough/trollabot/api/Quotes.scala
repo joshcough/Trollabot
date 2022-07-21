@@ -49,7 +49,7 @@ trait Quotes[F[_]] {
       username: ChatUserName,
       channelName: ChannelName
   ): F[Either[Quote, Quote]]
-  def deleteQuote(channelName: ChannelName, qid: Int): F[Boolean]
+  def deleteQuote(channelName: ChannelName, qid: Int, userName: ChatUserName): F[Boolean]
 
   def countQuotes: F[Count]
   def countQuotesInStream(channelName: ChannelName): F[Count]
@@ -80,8 +80,8 @@ object Quotes {
       ): F[Either[Quote, Quote]] =
         QuotesDb.insertQuote(text, username, channelName).transact(xa)
 
-      def deleteQuote(channelName: ChannelName, qid: Int): F[Boolean] =
-        QuotesDb.deleteQuote(channelName, qid).transact(xa)
+      def deleteQuote(channelName: ChannelName, qid: Int, userName: ChatUserName): F[Boolean] =
+        QuotesDb.deleteQuote(channelName, qid, userName).transact(xa)
 
       def countQuotes: F[Count] = QuotesDb.countQuotes.transact(xa)
 
@@ -119,8 +119,12 @@ object QuotesDb extends Quotes[ConnectionIO] {
       }
     } yield r
 
-  def deleteQuote(channelName: ChannelName, qid: Int): ConnectionIO[Boolean] =
-    QuoteQueries.deleteQuote(channelName, qid: Int).run.map(_ > 0)
+  def deleteQuote(
+      channelName: ChannelName,
+      qid: Int,
+      userName: ChatUserName
+  ): ConnectionIO[Boolean] =
+    QuoteQueries.deleteQuote(channelName, qid, userName).run.map(_ > 0)
 
   def countQuotes: ConnectionIO[Count] = QuoteQueries.countQuotes.unique.map(Count)
 

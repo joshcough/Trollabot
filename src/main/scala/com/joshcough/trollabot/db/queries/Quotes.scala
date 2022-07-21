@@ -11,14 +11,15 @@ object Quotes {
   def getRandomQuoteForStream(channelName: ChannelName): Query0[Quote] =
     fr"""select q.qid, q.text, q.channel, q.added_by, q.added_at, q.deleted, q.deleted_by, q.deleted_at
          from quotes q
-         where q.channel = ${channelName.name}
+         where q.channel = ${channelName.name} and deleted = false
          order by random()
          limit 1"""
       .query[Quote]
 
   val countQuotes: Query0[Int] = sql"select count(*) from quotes".query[Int]
   def countQuotesInStream(channelName: ChannelName): Query0[Int] =
-    fr"select count(*) from quotes q where q.channel = ${channelName.name}".query[Int]
+    fr"select count(*) from quotes q where q.channel = ${channelName.name} and deleted = false"
+      .query[Int]
 
   def getAllQuotesForStream(channelName: ChannelName): Query0[Quote] =
     selectQuotes(channelName).query[Quote]
@@ -41,11 +42,12 @@ object Quotes {
   def selectQuotes(channelName: ChannelName): Fragment =
     fr"""select q.qid, q.text, q.channel, q.added_by, q.added_at, q.deleted, q.deleted_by, q.deleted_at
          from quotes q
-         where q.channel = ${channelName.name}"""
+         where q.channel = ${channelName.name} and deleted = false"""
 
-  // TODO: instead of deleting - mark as deleted, by whom and when
-  def deleteQuote(channelName: ChannelName, qid: Int): Update0 =
-    sql"""delete from quotes q where q.channel = ${channelName.name} and q.qid = $qid""".update
+  def deleteQuote(channelName: ChannelName, qid: Int, username: ChatUserName): Update0 =
+    sql"""update quotes quotes
+          set deleted = true, deleted_at = now(), deleted_by = ${username.name}
+          where channel = ${channelName.name} and qid = $qid""".update
 
   def nextQidForChannel_(channelName: ChannelName): Fragment =
     fr"select coalesce(max(q.qid) + 1, 0) from quotes q where q.channel = ${channelName.name}"
